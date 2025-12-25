@@ -1,0 +1,8 @@
+target/
+.git/
+.env
+README.md
+architecture.excalidraw
+LICENSE
+openapi.yaml
+schema.sql
