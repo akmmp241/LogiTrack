@@ -1,3 +1,4 @@
 pub mod shipment;
-pub mod status;
 pub mod event;
+pub mod dto;
+pub mod notification;

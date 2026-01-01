@@ -8,11 +8,13 @@ tokio = {workspace = true}
 axum = {workspace = true}
 serde = {workspace = true}
 chrono = {workspace = true}
-serde_json = {workspace = true}
 uuid = {workspace = true}
 tracing = {workspace = true}
-tracing-subscriber = {workspace = true}
 sqlx = {workspace = true}
 observability = {path = "../../libs/observability"}
+config = {path = "../../libs/config"}
+errors = {path = "../../libs/errors", features = ["http-integrations"]}
+biteship = {path = "../../libs/use_case/biteship"}
 dotenvy.workspace = true
-thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
