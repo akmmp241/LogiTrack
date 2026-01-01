@@ -1,0 +1,16 @@
+[package]
+name = "errors"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror.workspace = true
+anyhow.workspace = true
+
+axum = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+
+[features]
+default = []
+http-integrations = ["axum", "serde_json", "tracing"]
