@@ -1,0 +1,55 @@
+use crate::models::shipment::{Shipment};
+use sqlx::{Pool, Postgres};
+use biteship::error::TrackingError;
+
+#[derive(Clone)]
+pub struct ShipmentRepository {
+    pub pool: Pool<Postgres>,
+}
+
+impl ShipmentRepository {
+    pub async fn new(pool: Pool<Postgres>) -> Self {
+        Self { pool }
+    }
+
+    pub async fn save(&self, shipment: Shipment) -> Result<(), Option<TrackingError>> {
+        let res = sqlx::query(
+            "INSERT INTO  shipments
+                (id, waybill_id, courier_code,
+                 source, current_status, order_id,
+                 external_order_ref, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+        )
+            .bind(shipment.id)
+            .bind(shipment.waybill_id)
+            .bind(shipment.courier_code)
+            .bind(shipment.source)
+            .bind(shipment.current_status)
+            .bind(shipment.order_id)
+            .bind(shipment.external_ref_id)
+            .bind(shipment.created_at)
+            .bind(shipment.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|er| {
+            self.handle_db_err(er)
+        });
+
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn handle_db_err(&self, e: sqlx::Error) -> Option<TrackingError> {
+        if let Some(db_err) = e.as_database_error() {
+            match db_err.code().map(|c| c.to_string()).as_deref() {
+                Some("23505") => return Some(TrackingError::DuplicateTrackingNumber),
+                Some("23503") => return Some(TrackingError::NotFound),
+                _ => {}
+            }
+        }
+
+        tracing::error!("Internal DB Error: {:?}", e);
+        None
+    }
+}
