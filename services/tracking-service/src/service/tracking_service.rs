@@ -89,7 +89,7 @@ impl TrackingService {
                 ShipmentStatus::Delivered,
                 ShipmentStatus::Delivered,
             ],
-            label: "default".into(),
+            label: req.label.clone(),
             created_at: current_time,
             updated_at: current_time,
         };

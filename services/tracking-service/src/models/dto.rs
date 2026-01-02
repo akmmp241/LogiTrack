@@ -7,6 +7,7 @@ use crate::models::notification::NotificationChannel;
 pub struct AddTrackingRequest {
     pub awb: String,
     pub courier_code: String,
+    pub label: String,
     pub is_internal: bool,
     pub notify_on: Vec<NotificationChannel>,
 }
