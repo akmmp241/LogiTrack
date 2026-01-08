@@ -1,15 +1,23 @@
 use crate::models::dto::{AddTrackingRequest, AddTrackingResponse};
+use crate::models::notification::{
+    NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
+};
 use crate::models::shipment::{
     Shipment, ShipmentSource, ShipmentStatus, ShipmentStatusParse, ShipmentSubscription,
 };
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
+use anyhow::anyhow;
 use biteship::BiteshipUseCase;
 use chrono::Utc;
 use errors::error::HttpError;
+use lapin::BasicProperties;
+use lapin::options::BasicPublishOptions;
 use std::str::FromStr;
 use uuid::Uuid;
+
+static EXCHANGE_NAME: &str = "notification.events";
 
 #[derive(Clone)]
 pub struct TrackingService {
@@ -17,6 +25,7 @@ pub struct TrackingService {
     pub shipment_subs_repo: ShipmentSubsRepository,
     pub map_status_repo: ShipmentStatusMappingRepository,
     pub biteship_uc: BiteshipUseCase,
+    pub rabbitmq_channel: lapin::Channel,
 }
 
 impl TrackingService {
@@ -25,12 +34,14 @@ impl TrackingService {
         shipment_subs_repo: ShipmentSubsRepository,
         map_status_repo: ShipmentStatusMappingRepository,
         biteship_uc: BiteshipUseCase,
+        rabbitmq_channel: lapin::Channel,
     ) -> Self {
         Self {
             shipment_repository,
             shipment_subs_repo,
             map_status_repo,
             biteship_uc,
+            rabbitmq_channel,
         }
     }
 
@@ -70,7 +81,7 @@ impl TrackingService {
         let shipment_id_clone = shipment.id.clone();
 
         self.shipment_repository
-            .save(shipment)
+            .save(shipment.clone())
             .await
             .map_err(|e| match e {
                 Some(err) => HttpError::BadRequest(err.to_string()),
@@ -98,6 +109,51 @@ impl TrackingService {
             .save(subs)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        for ch in req.notify_on.iter() {
+            let recipient = match ch {
+                NotificationChannel::Whatsapp => "6285158824017",
+                NotificationChannel::Email => "akmalmp241@gmail.com",
+                NotificationChannel::Push => "",
+            };
+
+            let payload = TrackingEventMsg {
+                message_id: Uuid::new_v4(),
+                event_type: TrackingEventMsgType::TrackingAdded,
+                channel: ch.clone(),
+                user_id: user_uuid,
+                recipient: recipient.to_string(),
+                template_code: "TRACKING_STATUS".to_string(),
+                payload: TrackingMsgPayload {
+                    waybill_id: req.awb.clone(),
+                    status: shipment.current_status.to_string().to_lowercase(),
+                    courier: shipment.courier_code.clone(),
+                },
+            };
+
+            let payload = serde_json::to_vec(&payload).map_err(|e| {
+                HttpError::InternalServerError(anyhow!("failed to serialize msg payload"))
+            })?;
+
+            let sent = self
+                .rabbitmq_channel
+                .basic_publish(
+                    EXCHANGE_NAME,
+                    format!(
+                        "notification.tracking_added.{}",
+                        ch.to_string().to_lowercase()
+                    )
+                    .as_str(),
+                    BasicPublishOptions::default(),
+                    &payload,
+                    BasicProperties::default().with_delivery_mode(2),
+                )
+                .await
+                .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+            sent.await
+                .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+        }
 
         let response = AddTrackingResponse {
             message: "Successfully add new tracking".into(),

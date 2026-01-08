@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Type};
 use std::error::Error;
+use std::fmt::Display;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, FromRow, Serialize, Clone)]
@@ -32,6 +33,12 @@ pub enum ShipmentStatus {
     Returned,
     Cancelled,
     Unknown,
+}
+
+impl Display for ShipmentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self))
+    }
 }
 
 #[async_trait]

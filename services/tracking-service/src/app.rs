@@ -6,6 +6,7 @@ use crate::service::tracking_service::TrackingService;
 use axum::Router;
 use biteship::BiteshipUseCase;
 use config::postgres::get_db_connection;
+use config::rabbitmq::create_channel;
 use config::reqwest::get_reqwest_pool;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -28,13 +29,18 @@ impl App {
 
         let pool = get_reqwest_pool().expect("couldn't create reqwest pool");
 
+        let rabbitmq_channel = create_channel()
+            .await
+            .expect("couldn't create rabbitmq channel");
+
         let repo = ShipmentRepository::new(db.clone()).await;
         let map_repo = ShipmentStatusMappingRepository::new(db.clone()).await;
         let shipment_subs_repo = ShipmentSubsRepository::new(db.clone()).await;
 
         let bs_uc = BiteshipUseCase::new(pool);
 
-        let service = TrackingService::new(repo, shipment_subs_repo, map_repo, bs_uc).await;
+        let service =
+            TrackingService::new(repo, shipment_subs_repo, map_repo, bs_uc, rabbitmq_channel).await;
 
         let state = Arc::new(AppState { service });
 
