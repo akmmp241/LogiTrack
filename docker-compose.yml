@@ -35,8 +35,23 @@ services:
     networks:
       - logitrack-net
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - logitrack-net
+
 volumes:
   logitrack_db_data:
+  rabbitmq_data:
 
 networks:
   logitrack-net:
