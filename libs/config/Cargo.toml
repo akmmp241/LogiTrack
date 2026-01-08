@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 sqlx.workspace = true
-dotenvy.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 reqwest.workspace = true
+lapin.workspace = true
