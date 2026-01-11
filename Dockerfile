@@ -14,7 +14,7 @@ RUN cargo install cargo-chef
 
 # mold is like a faster and more modern linker for build,
 # thanks to my frind for referencing this
-RUN apt-get update && apt-get install -y mold clang
+RUN apt-get update && apt-get install -y mold clang pkg-config libssl-dev
 
 ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 
@@ -26,7 +26,7 @@ RUN cargo chef cook --recipe-path recipe.json
 FROM rust:1.91.1-slim-bookworm AS builder
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y mold clang
+RUN apt-get update && apt-get install -y mold clang pkg-config libssl-dev
 ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 
 COPY --from=cacher /app/target target

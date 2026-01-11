@@ -1,0 +1,11 @@
+[package]
+name = "config"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sqlx.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+lapin.workspace = true
+lettre.workspace = true

@@ -1,4 +1,4 @@
-use crate::models::status::ShipmentStatus;
+use crate::models::shipment::ShipmentStatus;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
