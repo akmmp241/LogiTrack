@@ -8,3 +8,4 @@ sqlx.workspace = true
 tracing.workspace = true
 reqwest.workspace = true
 lapin.workspace = true
+lettre.workspace = true
