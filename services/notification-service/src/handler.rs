@@ -14,7 +14,7 @@ impl NotificationHandler {
     pub async fn handle(&self, event: &TrackingEventMsg) -> anyhow::Result<()> {
         let template = self.resolve_template(event)?;
 
-        let (content, subject) = self.sender.render(template, &event.payload)?;
+        let (content, subject) = self.sender.render(template, &mut event.payload.clone())?;
 
         self.sender.send(event, content, subject).await?;
 
