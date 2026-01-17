@@ -1,0 +1,12 @@
+📦 *Pengiriman Berhasil Ditambahkan*
+
+Halo,
+
+Nomor resi *{{waybill_id}}* dari *{{courier}}* sudah berhasil ditambahkan ke sistem tracking kami.
+
+📍 Status Saat Ini:
+_*{{status}}*_
+
+Kami akan mengirimkan notifikasi otomatis setiap ada update status pengiriman Anda.
+
+Terima kasih telah menggunakan layanan kami.

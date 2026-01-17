@@ -30,7 +30,7 @@ impl ChannelPort for TelegramSender {
     fn render(
         &self,
         template_id: TemplateId,
-        data: &TrackingMsgPayload,
+        data: &mut TrackingMsgPayload,
     ) -> anyhow::Result<(String, String)> {
         todo!()
     }

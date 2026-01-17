@@ -13,6 +13,7 @@ dotenvy.workspace = true
 observability = { path = "../../libs/observability" }
 tracing.workspace = true
 config = { path = "../../libs/config" }
+waha = { path = "../../libs/use_case/waha" }
 async-trait.workspace = true
 uuid.workspace = true
 reqwest.workspace = true
