@@ -1,0 +1,33 @@
+name: SonarQube Analysis
+
+on:
+  pull_request:
+    branches: [ staging ]
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Netbird Connect
+        uses: Alemiz112/netbird-connect@v1
+        with:
+          setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
+
+      - name: Wait for Netbird Route
+        run: |
+          echo "Waiting for Netbird routes to stabilize..."
+          sleep 15
+          sudo netbird status
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
