@@ -22,6 +22,6 @@ pub trait ChannelPort: Send + Sync {
     fn render(
         &self,
         template_id: TemplateId,
-        data: &TrackingMsgPayload,
+        data: &mut TrackingMsgPayload,
     ) -> anyhow::Result<(String, String)>;
 }
