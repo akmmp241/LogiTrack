@@ -174,4 +174,20 @@ impl TrackingService {
 
         Ok(res)
     }
+
+    pub async fn get_shipment_by_id(&self, id: Uuid) -> Result<Shipment, HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let res = self
+            .shipment_repository
+            .get_by_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        match res {
+            Some(shipment) => Ok(shipment),
+            None => Err(HttpError::NotFound("shipment not found".into())),
+        }
+    }
 }

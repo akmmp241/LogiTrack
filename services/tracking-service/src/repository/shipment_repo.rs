@@ -54,6 +54,25 @@ impl ShipmentRepository {
         Ok(res)
     }
 
+    pub async fn get_by_id(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<Shipment>, sqlx::Error> {
+        let res: Option<Shipment> = sqlx::query_as(
+            "SELECT id, waybill_id, courier_code,
+                    source, current_status, order_id,
+                    external_order_ref, created_at, updated_at FROM shipments
+                    WHERE user_id = $1 AND id = $2",
+        )
+        .bind(user_id)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(res)
+    }
+
     fn handle_db_err(&self, e: sqlx::Error) -> Option<TrackingError> {
         if let Some(db_err) = e.as_database_error() {
             match db_err.code().map(|c| c.to_string()).as_deref() {

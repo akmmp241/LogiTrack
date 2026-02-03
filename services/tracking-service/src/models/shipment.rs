@@ -57,6 +57,7 @@ pub struct Shipment {
     pub source: ShipmentSource,
     pub order_id: Option<Uuid>,
     #[sqlx(rename = "external_order_ref")]
+    #[serde(rename = "external_order_ref")]
     pub external_ref_id: Option<String>,
     pub current_status: ShipmentStatus,
     pub created_at: DateTime<Utc>,
