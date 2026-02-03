@@ -1,6 +1,7 @@
-use crate::models::shipment::{Shipment};
-use sqlx::{Pool, Postgres};
+use crate::models::shipment::{Shipment, ShipmentStatus};
 use biteship::error::TrackingError;
+use sqlx::{Pool, Postgres};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct ShipmentRepository {
@@ -38,6 +39,19 @@ impl ShipmentRepository {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
+    }
+
+    pub async fn get_all(&self, user_id: Uuid) -> Result<Vec<Shipment>, sqlx::Error> {
+        let res: Vec<Shipment> = sqlx::query_as(
+            "SELECT id, waybill_id, courier_code,
+                    source, current_status, order_id,
+                    external_order_ref, created_at, updated_at FROM shipments WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(res)
     }
 
     fn handle_db_err(&self, e: sqlx::Error) -> Option<TrackingError> {

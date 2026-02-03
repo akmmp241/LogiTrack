@@ -150,6 +150,9 @@ VALUES ('biteship', 'confirmed', 'CREATED'),
 
 ALTER TABLE status_mappings RENAME COLUMN courier_code TO platform;
 
+ALTER TABLE shipments
+    ADD COLUMN user_id UUID REFERENCES users (id);
+
 -- Dummy user data
 INSERT INTO users (id, name, phone_number, email, created_at)
 VALUES
@@ -167,3 +170,15 @@ INSERT INTO shipment_subscriptions (id, user_id, shipment_id, subscribed_statuse
 VALUES
     ('850e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000', 'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{OUT_FOR_DELIVERY,DELIVERED,FAILED}', 'Electronics Order', '2024-01-16 09:15:00+00', '2024-01-16 09:15:00+00'),
     ('850e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{DELIVERED,FAILED, RETURNED}', 'Books Order', '2024-01-22 16:15:00+00', '2024-01-22 16:15:00+00');
+
+SELECT id,
+       waybill_id,
+       courier_code,
+       source,
+       current_status,
+       order_id,
+       external_order_ref,
+       created_at,
+       updated_at
+FROM shipments
+WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';

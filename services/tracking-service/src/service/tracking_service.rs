@@ -1,4 +1,4 @@
-use crate::models::dto::{AddTrackingRequest, AddTrackingResponse};
+use crate::models::dto::{AddTrackingRequest, AddTrackingResponse, GetShipmentsResponse};
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
@@ -160,5 +160,18 @@ impl TrackingService {
         };
 
         Ok(response)
+    }
+
+    pub async fn get_shipments(&self) -> Result<GetShipmentsResponse, HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let res = self
+            .shipment_repository
+            .get_all(user_uuid)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        Ok(res)
     }
 }

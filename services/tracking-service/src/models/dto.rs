@@ -1,7 +1,8 @@
+use crate::models::notification::NotificationChannel;
+use crate::models::shipment::Shipment;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
-use crate::models::notification::NotificationChannel;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AddTrackingRequest {
@@ -22,3 +23,5 @@ impl IntoResponse for AddTrackingResponse {
         Json(self).into_response()
     }
 }
+
+pub type GetShipmentsResponse = Vec<Shipment>;
