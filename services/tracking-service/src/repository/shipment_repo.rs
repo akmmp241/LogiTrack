@@ -73,6 +73,16 @@ impl ShipmentRepository {
         Ok(res)
     }
 
+    pub async fn delete_by_id(&self, user_id: Uuid, id: Uuid) -> Result<u64, sqlx::Error> {
+        let res = sqlx::query("DELETE FROM shipments WHERE user_id = $1 AND id = $2")
+            .bind(user_id)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(res.rows_affected())
+    }
+
     fn handle_db_err(&self, e: sqlx::Error) -> Option<TrackingError> {
         if let Some(db_err) = e.as_database_error() {
             match db_err.code().map(|c| c.to_string()).as_deref() {

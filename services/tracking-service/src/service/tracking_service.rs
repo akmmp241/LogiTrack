@@ -190,4 +190,26 @@ impl TrackingService {
             None => Err(HttpError::NotFound("shipment not found".into())),
         }
     }
+
+    pub async fn delete_shipment_by_id(&self, id: Uuid) -> Result<(), HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        self.shipment_subs_repo
+            .delete_by_shipment_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        let rows_affected = self
+            .shipment_repository
+            .delete_by_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        if rows_affected == 0 {
+            return Err(HttpError::NotFound("shipment not found".into()));
+        }
+
+        Ok(())
+    }
 }
