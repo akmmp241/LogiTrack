@@ -1,6 +1,7 @@
-use crate::models::shipment::{Shipment};
-use sqlx::{Pool, Postgres};
+use crate::models::shipment::{Shipment, ShipmentStatus};
 use biteship::error::TrackingError;
+use sqlx::{Pool, Postgres};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct ShipmentRepository {
@@ -38,6 +39,48 @@ impl ShipmentRepository {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
+    }
+
+    pub async fn get_all(&self, user_id: Uuid) -> Result<Vec<Shipment>, sqlx::Error> {
+        let res: Vec<Shipment> = sqlx::query_as(
+            "SELECT id, waybill_id, courier_code,
+                    source, current_status, order_id,
+                    external_order_ref, created_at, updated_at FROM shipments WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(res)
+    }
+
+    pub async fn get_by_id(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<Shipment>, sqlx::Error> {
+        let res: Option<Shipment> = sqlx::query_as(
+            "SELECT id, waybill_id, courier_code,
+                    source, current_status, order_id,
+                    external_order_ref, created_at, updated_at FROM shipments
+                    WHERE user_id = $1 AND id = $2",
+        )
+        .bind(user_id)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(res)
+    }
+
+    pub async fn delete_by_id(&self, user_id: Uuid, id: Uuid) -> Result<u64, sqlx::Error> {
+        let res = sqlx::query("DELETE FROM shipments WHERE user_id = $1 AND id = $2")
+            .bind(user_id)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(res.rows_affected())
     }
 
     fn handle_db_err(&self, e: sqlx::Error) -> Option<TrackingError> {

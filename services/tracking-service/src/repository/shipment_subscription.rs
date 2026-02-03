@@ -1,6 +1,7 @@
 use crate::models::shipment::ShipmentSubscription;
 use sqlx::{Pool, Postgres};
 use std::error::Error;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct ShipmentSubsRepository {
@@ -29,5 +30,21 @@ impl ShipmentSubsRepository {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn delete_by_shipment_id(
+        &self,
+        user_id: Uuid,
+        shipment_id: Uuid,
+    ) -> Result<u64, sqlx::Error> {
+        let res = sqlx::query(
+            "DELETE FROM shipment_subscriptions WHERE user_id = $1 AND shipment_id = $2",
+        )
+        .bind(user_id)
+        .bind(shipment_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(res.rows_affected())
     }
 }

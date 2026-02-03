@@ -1,4 +1,4 @@
-use crate::models::dto::{AddTrackingRequest, AddTrackingResponse};
+use crate::models::dto::{AddTrackingRequest, AddTrackingResponse, GetShipmentsResponse};
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
@@ -160,5 +160,56 @@ impl TrackingService {
         };
 
         Ok(response)
+    }
+
+    pub async fn get_shipments(&self) -> Result<GetShipmentsResponse, HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let res = self
+            .shipment_repository
+            .get_all(user_uuid)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        Ok(res)
+    }
+
+    pub async fn get_shipment_by_id(&self, id: Uuid) -> Result<Shipment, HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let res = self
+            .shipment_repository
+            .get_by_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        match res {
+            Some(shipment) => Ok(shipment),
+            None => Err(HttpError::NotFound("shipment not found".into())),
+        }
+    }
+
+    pub async fn delete_shipment_by_id(&self, id: Uuid) -> Result<(), HttpError> {
+        // this is a dummy user for the development phase
+        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        self.shipment_subs_repo
+            .delete_by_shipment_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        let rows_affected = self
+            .shipment_repository
+            .delete_by_id(user_uuid, id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        if rows_affected == 0 {
+            return Err(HttpError::NotFound("shipment not found".into()));
+        }
+
+        Ok(())
     }
 }
