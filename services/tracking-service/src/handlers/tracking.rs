@@ -54,6 +54,15 @@ pub async fn delete_shipment_by_id(
     Ok(StatusCode::OK)
 }
 
-pub async fn get_shipment_events() -> impl IntoResponse {
-    (StatusCode::OK, "ok")
+pub async fn get_shipment_events(
+    State(handler): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, HttpError> {
+    let id: Uuid = id
+        .parse()
+        .map_err(|_| HttpError::BadRequest("invalid uuid".into()))?;
+
+    let res = handler.service.get_shipment_events(id).await?;
+
+    Ok((StatusCode::OK, Json(res)))
 }

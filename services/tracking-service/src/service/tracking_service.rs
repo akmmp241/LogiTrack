@@ -1,6 +1,7 @@
 use crate::models::dto::{
     AddTrackingRequest, AddTrackingResponse, GetShipmentResponse, GetShipmentsResponse,
 };
+use crate::models::event::TrackingEvent;
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
@@ -230,5 +231,15 @@ impl TrackingService {
         }
 
         Ok(())
+    }
+
+    pub async fn get_shipment_events(&self, id: Uuid) -> Result<Vec<TrackingEvent>, HttpError> {
+        let res = self
+            .tracking_event_repo
+            .get_by_shipment_id(id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e)))?;
+
+        Ok(res)
     }
 }
