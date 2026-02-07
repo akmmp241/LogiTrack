@@ -1,3 +1,4 @@
+use crate::models::event::TrackingEvent;
 use crate::models::notification::NotificationChannel;
 use crate::models::shipment::Shipment;
 use axum::Json;
@@ -25,3 +26,10 @@ impl IntoResponse for AddTrackingResponse {
 }
 
 pub type GetShipmentsResponse = Vec<Shipment>;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetShipmentResponse {
+    #[serde(flatten)]
+    pub shipment: Shipment,
+    pub events: Vec<TrackingEvent>,
+}

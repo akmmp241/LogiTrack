@@ -23,6 +23,7 @@ pub enum ShipmentSource {
 
 #[derive(Type, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[sqlx(type_name = "shipment_status", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ShipmentStatus {
     Created,
     Received,

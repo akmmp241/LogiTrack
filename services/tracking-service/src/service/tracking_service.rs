@@ -1,4 +1,7 @@
-use crate::models::dto::{AddTrackingRequest, AddTrackingResponse, GetShipmentsResponse};
+use crate::models::dto::{
+    AddTrackingRequest, AddTrackingResponse, GetShipmentResponse, GetShipmentsResponse,
+};
+use crate::models::event::TrackingEvent;
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
@@ -8,6 +11,7 @@ use crate::models::shipment::{
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
+use crate::repository::tracking_event_repo::TrackingEventRepo;
 use anyhow::anyhow;
 use biteship::BiteshipUseCase;
 use chrono::Utc;
@@ -24,6 +28,7 @@ pub struct TrackingService {
     pub shipment_repository: ShipmentRepository,
     pub shipment_subs_repo: ShipmentSubsRepository,
     pub map_status_repo: ShipmentStatusMappingRepository,
+    pub tracking_event_repo: TrackingEventRepo,
     pub biteship_uc: BiteshipUseCase,
     pub rabbitmq_channel: lapin::Channel,
 }
@@ -33,6 +38,7 @@ impl TrackingService {
         shipment_repository: ShipmentRepository,
         shipment_subs_repo: ShipmentSubsRepository,
         map_status_repo: ShipmentStatusMappingRepository,
+        tracking_event_repo: TrackingEventRepo,
         biteship_uc: BiteshipUseCase,
         rabbitmq_channel: lapin::Channel,
     ) -> Self {
@@ -40,6 +46,7 @@ impl TrackingService {
             shipment_repository,
             shipment_subs_repo,
             map_status_repo,
+            tracking_event_repo,
             biteship_uc,
             rabbitmq_channel,
         }
@@ -175,20 +182,33 @@ impl TrackingService {
         Ok(res)
     }
 
-    pub async fn get_shipment_by_id(&self, id: Uuid) -> Result<Shipment, HttpError> {
+    pub async fn get_shipment_by_id(&self, id: Uuid) -> Result<GetShipmentResponse, HttpError> {
         // this is a dummy user for the development phase
         let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
 
-        let res = self
+        let shipment_res = self
             .shipment_repository
             .get_by_id(user_uuid, id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
-        match res {
-            Some(shipment) => Ok(shipment),
-            None => Err(HttpError::NotFound("shipment not found".into())),
-        }
+        let shipment = match shipment_res {
+            Some(shipment) => shipment,
+            None => return Err(HttpError::NotFound("shipment not found".into())),
+        };
+
+        let events_res = self
+            .tracking_event_repo
+            .get_by_shipment_id(shipment.id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        let res = GetShipmentResponse {
+            shipment,
+            events: events_res,
+        };
+
+        Ok(res)
     }
 
     pub async fn delete_shipment_by_id(&self, id: Uuid) -> Result<(), HttpError> {
@@ -211,5 +231,15 @@ impl TrackingService {
         }
 
         Ok(())
+    }
+
+    pub async fn get_shipment_events(&self, id: Uuid) -> Result<Vec<TrackingEvent>, HttpError> {
+        let res = self
+            .tracking_event_repo
+            .get_by_shipment_id(id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e)))?;
+
+        Ok(res)
     }
 }

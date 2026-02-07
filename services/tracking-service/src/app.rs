@@ -1,6 +1,7 @@
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
+use crate::repository::tracking_event_repo::TrackingEventRepo;
 use crate::routes::routes;
 use crate::service::tracking_service::TrackingService;
 use axum::Router;
@@ -36,11 +37,19 @@ impl App {
         let repo = ShipmentRepository::new(db.clone()).await;
         let map_repo = ShipmentStatusMappingRepository::new(db.clone()).await;
         let shipment_subs_repo = ShipmentSubsRepository::new(db.clone()).await;
+        let tracking_event_repo = TrackingEventRepo::new(db.clone()).await;
 
         let bs_uc = BiteshipUseCase::new(pool);
 
-        let service =
-            TrackingService::new(repo, shipment_subs_repo, map_repo, bs_uc, rabbitmq_channel).await;
+        let service = TrackingService::new(
+            repo,
+            shipment_subs_repo,
+            map_repo,
+            tracking_event_repo,
+            bs_uc,
+            rabbitmq_channel,
+        )
+        .await;
 
         let state = Arc::new(AppState { service });
 
