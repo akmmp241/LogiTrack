@@ -28,10 +28,10 @@ pub mod tracking {
     #[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
     pub struct Courier {
         pub company: String,
-        pub name: String,
-        pub phone: String,
-        pub driver_name: String,
-        pub driver_phone: String,
+        pub name: Option<String>,
+        pub phone: Option<String>,
+        pub driver_name: Option<String>,
+        pub driver_phone: Option<String>,
     }
 
     #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
