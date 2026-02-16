@@ -136,15 +136,15 @@ ALTER TABLE shipment_subscriptions
 INSERT INTO status_mappings (courier_code, raw_status, normalized_status)
 VALUES ('biteship', 'confirmed', 'CREATED'),
        ('biteship', 'allocated', 'CREATED'),
-       ('biteship', 'pickingUp', 'RECEIVED'),
+       ('biteship', 'picking_up', 'RECEIVED'),
        ('biteship', 'picked', 'RECEIVED'),
-       ('biteship', 'droppingOff', 'IN_TRANSIT'),
-       ('biteship', 'onHold', 'IN_TRANSIT'),
-       ('biteship', 'returnInTransit', 'RETURNED'),
+       ('biteship', 'dropping_off', 'IN_TRANSIT'),
+       ('biteship', 'on_hold', 'IN_TRANSIT'),
+       ('biteship', 'return_in_transit', 'RETURNED'),
        ('biteship', 'delivered', 'DELIVERED'),
        ('biteship', 'returned', 'RETURNED'),
        ('biteship', 'rejected', 'FAILED'),
-       ('biteship', 'courierNotFound', 'FAILED'),
+       ('biteship', 'courier_not_found', 'FAILED'),
        ('biteship', 'disposed', 'FAILED'),
        ('biteship', 'cancelled', 'CANCELLED');
 
@@ -182,3 +182,6 @@ SELECT id,
        updated_at
 FROM shipments
 WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';
+
+ALTER TABLE tracking_events
+    DROP COLUMN location;
