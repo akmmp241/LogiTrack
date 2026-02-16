@@ -1,5 +1,6 @@
 use crate::models::dto::{
     AddTrackingRequest, AddTrackingResponse, GetShipmentResponse, GetShipmentsResponse,
+    TrackingEventRes,
 };
 use crate::models::event::TrackingEvent;
 use crate::models::notification::{
@@ -186,27 +187,32 @@ impl TrackingService {
         // this is a dummy user for the development phase
         let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
 
-        let shipment_res = self
+        let shipment = self
             .shipment_repository
             .get_by_id(user_uuid, id)
             .await
-            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
-
-        let shipment = match shipment_res {
-            Some(shipment) => shipment,
-            None => return Err(HttpError::NotFound("shipment not found".into())),
-        };
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::NotFound("shipment not found".into()))?;
 
         let events_res = self
             .tracking_event_repo
             .get_by_shipment_id(shipment.id)
             .await
-            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+            .map_err(|e| {
+                tracing::error!("failed to get events for shipment: {}", e);
+                HttpError::InternalServerError(anyhow::anyhow!(e.to_string()))
+            })?;
 
-        let res = GetShipmentResponse {
-            shipment,
-            events: events_res,
-        };
+        let mut events: Vec<TrackingEventRes> = Vec::new();
+        events_res.iter().for_each(|e| {
+            events.push(TrackingEventRes {
+                normalized_status: e.normalized_status.to_string(),
+                description: e.description.clone(),
+                occurred_at: e.occurred_at,
+            })
+        });
+
+        let res = GetShipmentResponse { shipment, events };
 
         Ok(res)
     }
@@ -233,13 +239,22 @@ impl TrackingService {
         Ok(())
     }
 
-    pub async fn get_shipment_events(&self, id: Uuid) -> Result<Vec<TrackingEvent>, HttpError> {
+    pub async fn get_shipment_events(&self, id: Uuid) -> Result<Vec<TrackingEventRes>, HttpError> {
         let res = self
             .tracking_event_repo
             .get_by_shipment_id(id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e)))?;
 
-        Ok(res)
+        let mut events: Vec<TrackingEventRes> = Vec::new();
+        res.iter().for_each(|e| {
+            events.push(TrackingEventRes {
+                normalized_status: e.normalized_status.to_string(),
+                description: e.description.clone(),
+                occurred_at: e.occurred_at,
+            })
+        });
+
+        Ok(events)
     }
 }

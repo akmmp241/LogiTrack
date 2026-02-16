@@ -34,9 +34,8 @@ impl TrackingEventRepo {
         shipment_id: Uuid,
     ) -> Result<Vec<TrackingEvent>, sqlx::Error> {
         let res: Vec<TrackingEvent> = sqlx::query_as(
-            "SELECT id, shipment_id, raw_status
-                        normalized_status, description, occurred_at
-                        location, source, created_at
+            "SELECT id, shipment_id, raw_status, normalized_status,
+                        description, occurred_at, source, created_at
                 FROM tracking_events WHERE shipment_id = $1",
         )
         .bind(shipment_id)

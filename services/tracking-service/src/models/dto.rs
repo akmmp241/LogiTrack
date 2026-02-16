@@ -1,8 +1,8 @@
-use crate::models::event::TrackingEvent;
 use crate::models::notification::NotificationChannel;
 use crate::models::shipment::Shipment;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,5 +31,13 @@ pub type GetShipmentsResponse = Vec<Shipment>;
 pub struct GetShipmentResponse {
     #[serde(flatten)]
     pub shipment: Shipment,
-    pub events: Vec<TrackingEvent>,
+    pub events: Vec<TrackingEventRes>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TrackingEventRes {
+    #[serde(rename = "status")]
+    pub normalized_status: String,
+    pub description: String,
+    pub occurred_at: DateTime<Utc>,
 }

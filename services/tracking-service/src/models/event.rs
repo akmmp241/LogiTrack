@@ -11,7 +11,6 @@ pub struct TrackingEvent {
     pub raw_status: String,
     pub normalized_status: ShipmentStatus,
     pub description: String,
-    pub location: Option<String>,
     pub occurred_at: DateTime<Utc>,
     pub source: TrackingEventSource,
     pub created_at: DateTime<Utc>,
@@ -19,6 +18,8 @@ pub struct TrackingEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "tracking_event_source")]
+#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TrackingEventSource {
     Polling,
     Webhook,
