@@ -1,0 +1,21 @@
+[package]
+name = "webhook-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+observability = { path = "../../libs/observability" }
+config = { path = "../../libs/config" }
+errors = { path = "../../libs/errors", features = ["http-integrations"] }
+dotenvy.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tower-http = { version = "0.6.8", features = ["trace"] }
