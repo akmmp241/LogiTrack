@@ -3,11 +3,9 @@ use crate::routes::register_biteship_routes;
 use crate::services::biteship_service::BiteshipService;
 use axum::Router;
 use config::postgres::get_db_connection;
+use config::rabbitmq::create_channel;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_http::classify::ServerErrorsFailureClass::StatusCode;
-use tower_http::trace;
-use trace::TraceLayer;
 
 pub struct App {
     biteship_handler: Arc<BiteshipHandler>,
@@ -21,7 +19,11 @@ impl App {
                 .expect("Failed to connect to database"),
         );
 
-        let biteship_service = Arc::new(BiteshipService::new(db));
+        let rabbitmq_channel = create_channel()
+            .await
+            .expect("couldn't create rabbitmq channel");
+
+        let biteship_service = Arc::new(BiteshipService::new(db, rabbitmq_channel));
 
         let biteship_handler = Arc::new(BiteshipHandler::new(biteship_service));
 
