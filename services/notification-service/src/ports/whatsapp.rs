@@ -46,6 +46,10 @@ impl ChannelPort for WhatsappSender {
                 "templates/tracking_added/chat.stub",
                 "Your Shipment Is On Tracking",
             ),
+            TemplateId::TrackingStatusUpdatedWa => (
+                "templates/tracking_status_updated/chat.stub",
+                "Your Shipment Status Has Been Updated",
+            ),
             _ => return Err(anyhow!("invalid template")),
         };
 

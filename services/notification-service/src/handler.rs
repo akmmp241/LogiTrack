@@ -32,6 +32,15 @@ impl NotificationHandler {
             (TrackingEventMsgType::TrackingAdded, NotificationChannel::Telegram) => {
                 Ok(TemplateId::TrackingCreatedTele)
             }
+            (TrackingEventMsgType::TrackingStatusUpdated, NotificationChannel::Whatsapp) => {
+                Ok(TemplateId::TrackingStatusUpdatedWa)
+            }
+            (TrackingEventMsgType::TrackingStatusUpdated, NotificationChannel::Email) => {
+                Ok(TemplateId::TrackingStatusUpdatedEmail)
+            }
+            (TrackingEventMsgType::TrackingStatusUpdated, NotificationChannel::Telegram) => {
+                Ok(TemplateId::TrackingStatusUpdatedTele)
+            }
             _ => Err(anyhow::anyhow!("Unsupported channel")),
         }
     }
