@@ -40,4 +40,7 @@ pub enum TemplateId {
     TrackingCreatedEmail,
     TrackingCreatedWa,
     TrackingCreatedTele,
+    TrackingStatusUpdatedEmail,
+    TrackingStatusUpdatedWa,
+    TrackingStatusUpdatedTele,
 }

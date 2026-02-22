@@ -62,6 +62,10 @@ impl ChannelPort for EmailSmtpSender {
                 "templates/tracking_added/email.mustache",
                 "Your Shipment Is On Tracking",
             ),
+            TemplateId::TrackingStatusUpdatedEmail => (
+                "templates/tracking_status_updated/email.mustache",
+                "Your Shipment Status Has Been Updated",
+            ),
             _ => return Err(anyhow!("invalid template")),
         };
 

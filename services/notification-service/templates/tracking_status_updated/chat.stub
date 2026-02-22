@@ -1,0 +1,12 @@
+🔄 *Status Pengiriman Diperbarui*
+
+Halo,
+
+Nomor resi *{{waybill_id}}* dari *{{courier}}* memiliki pembaruan status.
+
+📍 Status Terbaru:
+_*{{status}}*_
+
+Kami akan terus mengirimkan notifikasi otomatis setiap ada update status pengiriman Anda.
+
+Terima kasih telah menggunakan layanan kami.
