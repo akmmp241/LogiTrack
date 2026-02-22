@@ -4,8 +4,9 @@ members = [
     "libs/config",
     "libs/observability",
     "libs/use_case/biteship",
-    "libs/errors"
-    , "libs/use_case/waha"]
+    "libs/errors",
+    "libs/use_case/waha",
+]
 resolver = "2"
 
 #[build]
