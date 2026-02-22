@@ -1,19 +1,34 @@
 use crate::domain::biteship::BiteshipChangeStatusEvent;
-use crate::domain::shipment::{Shipment, ShipmentStatus, StatusMapping, TrackingEventSource};
+use crate::domain::event::{TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload};
+use crate::domain::shipment::{
+    NotificationChannel, Shipment, ShipmentStatus, ShipmentSubscription, StatusMapping,
+    TrackingEventSource,
+};
 use crate::errors::ShipmentServiceError;
 use crate::services::DefaultService;
+use anyhow::anyhow;
 use chrono::Utc;
+use errors::error::HttpError;
+use lapin::BasicProperties;
+use lapin::options::BasicPublishOptions;
 use sqlx::types::Json;
 use sqlx::{Error, PgPool, Postgres, Transaction};
 use std::sync::Arc;
+use uuid::Uuid;
+
+static EXCHANGE_NAME: &str = "notification.events";
 
 pub struct BiteshipService {
     db: Arc<PgPool>,
+    rabbitmq_channel: lapin::Channel,
 }
 
 impl BiteshipService {
-    pub fn new(db: Arc<PgPool>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<PgPool>, rabbitmq_channel: lapin::Channel) -> Self {
+        Self {
+            db,
+            rabbitmq_channel,
+        }
     }
 
     pub async fn handle_event(
@@ -71,24 +86,77 @@ impl BiteshipService {
                 }
             })?;
 
-        self.log_tracking_event(&mut tx, shipment, status_mapped)
+        let shipment_id_cln = shipment.id.clone();
+        self.log_tracking_event(&mut tx, &shipment, &status_mapped)
             .await
             .map_err(|e| {
                 tracing::error!("failed to insert tracking event: {}", e);
                 ShipmentServiceError::Unexpected(e.into())
             })?;
 
-        self.log_webhook_event(&mut tx, payload)
+        self.log_webhook_event(&mut tx, &payload)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to log webhook event: {}", e);
                 ShipmentServiceError::Unexpected(e.into())
             })?;
 
+        let shipment_subs = self
+            .get_shipment_subs(&mut tx, shipment_id_cln)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get shipment subscription: {}", e);
+                ShipmentServiceError::Unexpected(e.into())
+            })?
+            .ok_or_else(|| ShipmentServiceError::NotFound(payload.courier_waybill_id.clone()))?;
+
         tx.commit().await.map_err(|e| {
             tracing::error!("Failed to commit transaction: {}", e);
             ShipmentServiceError::Unexpected(e.into())
         })?;
+
+        for ch in shipment_subs.subscribed_channels.iter() {
+            let recipient = match ch {
+                NotificationChannel::Whatsapp => "6285158824017",
+                NotificationChannel::Email => "akmalmp241@gmail.com",
+            };
+
+            let payload = TrackingEventMsg {
+                message_id: Uuid::new_v4(),
+                event_type: TrackingEventMsgType::TrackingStatusUpdated,
+                channel: ch.clone(),
+                user_id: shipment_subs.user_id.clone(),
+                recipient: recipient.to_string(),
+                template_code: "TRACKING_STATUS".to_string(),
+                payload: TrackingMsgPayload {
+                    waybill_id: payload.courier_waybill_id.clone(),
+                    status: shipment.current_status.clone().to_string().to_lowercase(),
+                    courier: shipment.courier_code.clone(),
+                },
+            };
+
+            let payload = serde_json::to_vec(&payload)
+                .map_err(|e| ShipmentServiceError::Unexpected(e.into()))?;
+
+            let sent = self
+                .rabbitmq_channel
+                .basic_publish(
+                    EXCHANGE_NAME,
+                    format!(
+                        "notification.tracking_status_changed.{}",
+                        ch.to_string().to_lowercase()
+                    )
+                    .as_str(),
+                    BasicPublishOptions::default(),
+                    &payload,
+                    BasicProperties::default().with_delivery_mode(2),
+                )
+                .await
+                .map_err(|e| ShipmentServiceError::Unexpected(e.into()))?;
+
+            sent.await
+                .map_err(|e| ShipmentServiceError::Unexpected(e.into()))?;
+        }
 
         Ok(())
     }
@@ -147,6 +215,23 @@ impl BiteshipService {
 
         Ok(res)
     }
+
+    async fn get_shipment_subs(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        shipment_id: Uuid,
+    ) -> Result<Option<ShipmentSubscription>, Error> {
+        let res: Option<ShipmentSubscription> = sqlx::query_as(
+            "SELECT id, user_id, shipment_id, subscribed_statues,
+                    subscribed_channels, label, created_at, updated_at
+                    WHERE shipment_id = $1",
+        )
+        .bind(shipment_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        Ok(res)
+    }
 }
 
 #[async_trait::async_trait]
@@ -154,8 +239,8 @@ impl DefaultService for BiteshipService {
     async fn log_tracking_event(
         &self,
         tx: &mut Transaction<Postgres>,
-        shipment: Shipment,
-        status_mapping: StatusMapping,
+        shipment: &Shipment,
+        status_mapping: &StatusMapping,
     ) -> Result<(), Error> {
         let res = sqlx::query(
             "
@@ -165,8 +250,8 @@ impl DefaultService for BiteshipService {
                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(shipment.id)
-        .bind(status_mapping.raw_status)
-        .bind(status_mapping.normalized_status)
+        .bind(status_mapping.raw_status.clone())
+        .bind(status_mapping.normalized_status.clone())
         .bind("something")
         .bind(Utc::now())
         .bind(TrackingEventSource::Webhook)
