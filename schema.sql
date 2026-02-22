@@ -185,3 +185,6 @@ WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';
 
 ALTER TABLE tracking_events
     DROP COLUMN location;
+
+ALTER TABLE shipment_subscriptions
+    ADD COLUMN subscribed_channels notification_channel[] DEFAULT '{EMAIL}';

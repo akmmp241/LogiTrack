@@ -60,3 +60,29 @@ pub enum TrackingEventSource {
     Polling,
     Webhook,
 }
+
+#[derive(Type, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+#[sqlx(type_name = "notification_channel", rename_all = "UPPERCASE")]
+pub enum NotificationChannel {
+    Whatsapp,
+    Email,
+}
+
+impl Display for NotificationChannel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ShipmentSubscription {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub shipment_id: Uuid,
+    pub subscribed_statues: Vec<ShipmentStatus>,
+    pub subscribed_channels: Vec<NotificationChannel>,
+    pub label: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

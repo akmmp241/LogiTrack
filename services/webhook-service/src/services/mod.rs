@@ -9,8 +9,8 @@ pub trait DefaultService {
     async fn log_tracking_event(
         &self,
         tx: &mut Transaction<Postgres>,
-        shipment: Shipment,
-        status_mapping: StatusMapping,
+        shipment: &Shipment,
+        status_mapping: &StatusMapping,
     ) -> Result<(), sqlx::Error>;
     async fn log_webhook_event(
         &self,
