@@ -1,0 +1,23 @@
+[package]
+name = "auth-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+anyhow = { workspace = true }
+argon2 = { workspace = true }
+jsonwebtoken = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+observability = { path = "../../libs/observability" }
+config = { path = "../../libs/config" }
+errors = { path = "../../libs/errors", features = ["http-integrations"] }
