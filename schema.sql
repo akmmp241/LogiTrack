@@ -187,3 +187,18 @@ ALTER TABLE tracking_events DROP COLUMN location;
 
 ALTER TABLE shipment_subscriptions
     ADD COLUMN subscribed_channels notification_channel[] DEFAULT '{EMAIL}';
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users
+    ALTER COLUMN name DROP NOT NULL;
+
+CREATE TABLE IF NOT EXISTS api_keys
+(
+    id         UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
+    user_id    UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    name       VARCHAR(255) NOT NULL,
+    hashed_key TEXT         NOT NULL,
+    active     BOOLEAN      NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ           DEFAULT now()
+);
