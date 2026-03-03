@@ -49,9 +49,23 @@ services:
     networks:
       - logitrack-net
 
+  redis:
+    image: redis:alpine
+    container_name: redis
+    environment:
+      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD}
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+
 volumes:
   logitrack_db_data:
   rabbitmq_data:
+  redis-data:
 
 networks:
   logitrack-net:
