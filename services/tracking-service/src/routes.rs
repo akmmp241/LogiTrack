@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/shipments", post(create_shipments))
-        .route("/shipments", get(get_shipments))
-        .route("/shipments/{id}", get(get_shipment_by_id))
-        .route("/shipments/{id}", delete(delete_shipment_by_id))
-        .route("/shipments/{id}/events", get(get_shipment_events))
+        .route("/api/shipments", post(create_shipments))
+        .route("/api/shipments", get(get_shipments))
+        .route("/api/shipments/{id}", get(get_shipment_by_id))
+        .route("/api/shipments/{id}", delete(delete_shipment_by_id))
+        .route("/api/shipments/{id}/events", get(get_shipment_events))
         .with_state(state)
 }
