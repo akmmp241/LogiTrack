@@ -1309,28 +1309,19 @@ dependencies = [
 name = "gateway-service"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-trait",
  "axum",
- "biteship",
- "chrono",
  "config",
  "dotenvy",
- "errors",
  "http-body-util",
  "jsonwebtoken",
- "lapin",
  "observability",
- "once_cell",
  "redis",
  "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tower",
  "tower-http",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -3854,7 +3845,6 @@ dependencies = [
  "pin-project-lite",
  "sync_wrapper",
  "tokio",
- "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
