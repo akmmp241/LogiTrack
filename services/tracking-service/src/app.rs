@@ -57,9 +57,12 @@ impl App {
     }
 
     pub async fn run(&self) {
+        let port = std::env::var("TRACKING_SERVICE_PORT").unwrap_or_else(|_| "3002".to_string());
+        let addr = format!("0.0.0.0:{}", port);
+
         let router = Router::new().merge(routes(self.state.clone()));
 
-        let listener = TcpListener::bind("0.0.0.0:3000")
+        let listener = TcpListener::bind(&addr)
             .await
             .expect("could not bind listener");
 
