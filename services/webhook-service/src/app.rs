@@ -31,6 +31,9 @@ impl App {
     }
 
     pub async fn run(&self) {
+        let port = std::env::var("WEBHOOK_SERVICE_PORT").unwrap_or_else(|_| "3003".to_string());
+        let addr = format!("0.0.0.0:{}", port);
+
         let biteship_router = register_biteship_routes(self.biteship_handler.clone());
 
         let app = Router::new()
@@ -40,7 +43,7 @@ impl App {
             )
             .nest("/api/webhook", biteship_router);
 
-        let listener = TcpListener::bind("0.0.0.0:3000")
+        let listener = TcpListener::bind(&addr)
             .await
             .expect("could not bind listener");
 
