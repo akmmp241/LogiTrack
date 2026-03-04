@@ -1,8 +1,8 @@
 use crate::error::HttpError;
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 impl IntoResponse for HttpError {
@@ -10,6 +10,8 @@ impl IntoResponse for HttpError {
         let (status, error_message) = match self {
             Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            Self::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
+            Self::Conflict(msg) => (StatusCode::CONFLICT, msg),
             Self::InternalServerError(err) => {
                 tracing::error!("Internal Error: {:?}", err);
                 (
