@@ -1,7 +1,9 @@
 use crate::repository::api_key_repo::ApiKeyRepository;
+use crate::repository::user_notif_preference_repo::UserNotifPreferenceRepository;
 use crate::repository::user_repo::UserRepository;
 use crate::routes::routes;
 use crate::service::auth_service::AuthService;
+use crate::service::user_notif_preferences_service::UserNotificationPreferencesService;
 use axum::Router;
 use config::postgres::get_db_connection;
 use jsonwebtoken::{DecodingKey, EncodingKey};
@@ -15,7 +17,8 @@ pub struct App {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub service: AuthService,
+    pub auth_service: AuthService,
+    pub notif_pref_service: UserNotificationPreferencesService,
 }
 
 impl App {
@@ -45,16 +48,22 @@ impl App {
 
         let user_repo = UserRepository::new(db.clone());
         let api_key_repo = ApiKeyRepository::new(db.clone());
+        let notif_pref_repo = UserNotifPreferenceRepository::new(db.clone());
 
-        let service = AuthService::new(
+        let auth_service = AuthService::new(
             user_repo,
             api_key_repo,
+            notif_pref_repo.clone(),
             encoding_key,
             decoding_key,
             jwt_expiration,
         );
+        let notif_pref_service = UserNotificationPreferencesService::new(notif_pref_repo);
 
-        let state = Arc::new(AppState { service });
+        let state = Arc::new(AppState {
+            auth_service,
+            notif_pref_service,
+        });
 
         Self { state }
     }

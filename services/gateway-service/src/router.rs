@@ -51,6 +51,11 @@ pub fn create_router(urls: ServiceUrls, state: AppState) -> Router {
             let state_inner = state.clone();
             any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
         })
+        .route("/api/user/{*path}", {
+            let target = urls.auth_url.clone();
+            let state_inner = state.clone();
+            any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
+        })
         .route("/api/shipments/{*path}", {
             let target = urls.tracking_url.clone();
             let state_inner = state.clone();

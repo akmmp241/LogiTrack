@@ -3,6 +3,7 @@ use dotenvy::dotenv;
 
 mod app;
 mod handlers;
+mod helper;
 mod models;
 mod repository;
 mod routes;

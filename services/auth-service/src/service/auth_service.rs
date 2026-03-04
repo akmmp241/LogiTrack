@@ -3,6 +3,7 @@ use crate::models::api_key::{
 };
 use crate::models::user::{Claims, LoginRequest, LoginResponse, RegisterRequest};
 use crate::repository::api_key_repo::ApiKeyRepository;
+use crate::repository::user_notif_preference_repo::UserNotifPreferenceRepository;
 use crate::repository::user_repo::UserRepository;
 use argon2::password_hash::SaltString;
 use argon2::password_hash::rand_core::OsRng;
@@ -16,6 +17,7 @@ use uuid::Uuid;
 pub struct AuthService {
     user_repo: UserRepository,
     api_key_repo: ApiKeyRepository,
+    notif_pref_repo: UserNotifPreferenceRepository,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
     jwt_expiration: u64,
@@ -25,6 +27,7 @@ impl AuthService {
     pub fn new(
         user_repo: UserRepository,
         api_key_repo: ApiKeyRepository,
+        notif_pref_repo: UserNotifPreferenceRepository,
         encoding_key: EncodingKey,
         decoding_key: DecodingKey,
         jwt_expiration: u64,
@@ -32,6 +35,7 @@ impl AuthService {
         Self {
             user_repo,
             api_key_repo,
+            notif_pref_repo,
             encoding_key,
             decoding_key,
             jwt_expiration,
@@ -58,10 +62,29 @@ impl AuthService {
             })?
             .to_string();
 
-        self.user_repo
+        let user = self
+            .user_repo
             .create_user(&req.email, &password_hash)
             .await
             .map_err(|e| HttpError::InternalServerError(e.into()))?;
+
+        if !self
+            .notif_pref_repo
+            .create_notif_preferences(user.id)
+            .await
+            .map_err(|e| {
+                tracing::warn!(
+                    "Notification Preferences not created for user id {}",
+                    user.id
+                );
+                HttpError::InternalServerError(e.into())
+            })?
+        {
+            tracing::warn!(
+                "Notification Preferences not created for user id {}",
+                user.id
+            );
+        }
 
         Ok(())
     }
