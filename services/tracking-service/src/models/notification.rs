@@ -40,6 +40,7 @@ pub struct TrackingEventMsg {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackingMsgPayload {
+    pub shipment_id: Uuid,
     pub waybill_id: String,
     pub status: String,
     pub courier: String,

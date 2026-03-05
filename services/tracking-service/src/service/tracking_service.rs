@@ -86,7 +86,6 @@ impl TrackingService {
             created_at: current_time,
             updated_at: current_time,
         };
-        let shipment_id_clone = shipment.id.clone();
 
         self.shipment_repository
             .save(shipment.clone())
@@ -101,7 +100,7 @@ impl TrackingService {
             id: Uuid::new_v4(),
             // this is a dummy user for the development phase
             user_id: user_uuid,
-            shipment_id: shipment_id_clone,
+            shipment_id: shipment.id,
             subscribed_statues: vec![
                 ShipmentStatus::InTransit,
                 ShipmentStatus::OutForDelivery,
@@ -133,6 +132,7 @@ impl TrackingService {
                 recipient: recipient.to_string(),
                 template_code: "TRACKING_STATUS".to_string(),
                 payload: TrackingMsgPayload {
+                    shipment_id: shipment.id,
                     waybill_id: req.awb.clone(),
                     status: shipment.current_status.to_string().to_lowercase(),
                     courier: shipment.courier_code.clone(),

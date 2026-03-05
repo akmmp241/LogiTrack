@@ -60,7 +60,6 @@ impl NotificationHandler {
             (TrackingEventMsgType::TrackingStatusUpdated, NotificationChannel::Telegram) => {
                 Ok(TemplateId::TrackingStatusUpdatedTele)
             }
-            _ => Err(anyhow::anyhow!("Unsupported channel")),
         }
     }
 
