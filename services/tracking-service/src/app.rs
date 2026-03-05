@@ -1,3 +1,4 @@
+use crate::repository::notification_log_repo::NotificationLogRepository;
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
@@ -43,6 +44,7 @@ impl App {
             tracking_event_repo: TrackingEventRepo::new(db.clone()).await,
             tracking_job_repo: TrackingJobRepository::new(db.clone()),
             user_repo: UserRepository::new(db.clone()),
+            notification_log_repo: NotificationLogRepository::new(db.clone()),
         };
 
         let bs_uc = BiteshipUseCase::new(pool);

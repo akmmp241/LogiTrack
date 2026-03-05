@@ -10,6 +10,7 @@ use crate::models::shipment::{
     TrackingJob,
 };
 use crate::models::user::UserWithNotifPref;
+use crate::repository::notification_log_repo::NotificationLogRepository;
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
@@ -34,6 +35,7 @@ pub struct Repositories {
     pub tracking_event_repo: TrackingEventRepo,
     pub tracking_job_repo: TrackingJobRepository,
     pub user_repo: UserRepository,
+    pub notification_log_repo: NotificationLogRepository,
 }
 
 #[derive(Clone)]
@@ -280,6 +282,56 @@ impl TrackingService {
         });
 
         Ok(events)
+    }
+
+    pub async fn get_notification_logs_by_shipment(
+        &self,
+        shipment_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::notification_log::NotificationLog>, HttpError> {
+        self.repos
+            .shipment_repository
+            .get_by_id(user_id, shipment_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::NotFound("shipment not found".into()))?;
+
+        let logs = self
+            .repos
+            .notification_log_repo
+            .get_by_shipment_id(shipment_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        Ok(logs)
+    }
+
+    pub async fn get_notification_log_by_id(
+        &self,
+        notification_id: Uuid,
+        shipment_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<crate::models::notification_log::NotificationLog, HttpError> {
+        self.repos
+            .shipment_repository
+            .get_by_id(user_id, shipment_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::NotFound("shipment not found".into()))?;
+
+        let log = self
+            .repos
+            .notification_log_repo
+            .get_by_id(notification_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::NotFound("notification log not found".into()))?;
+
+        if log.shipment_id != shipment_id {
+            return Err(HttpError::NotFound("notification log not found".into()));
+        }
+
+        Ok(log)
     }
 
     async fn get_user(&self, user_id: &Uuid) -> Result<UserWithNotifPref, HttpError> {
