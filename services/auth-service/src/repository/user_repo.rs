@@ -12,10 +12,16 @@ impl UserRepository {
         Self { pool }
     }
 
-    pub async fn create_user(&self, email: &str, password_hash: &str) -> Result<User, sqlx::Error> {
+    pub async fn create_user(
+        &self,
+        email: &str,
+        password_hash: &str,
+        name: &str,
+        phone_number: &str,
+    ) -> Result<User, sqlx::Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (id, email, password_hash)
+            INSERT INTO users (id, email, password_hash, name, phone_number)
             VALUES ($1, $2, $3)
             RETURNING id, email, password_hash, created_at
             "#,
@@ -23,6 +29,8 @@ impl UserRepository {
         .bind(Uuid::new_v4())
         .bind(email)
         .bind(password_hash)
+        .bind(name)
+        .bind(phone_number)
         .fetch_one(&self.pool)
         .await?;
 

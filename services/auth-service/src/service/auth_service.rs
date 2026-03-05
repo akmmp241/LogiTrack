@@ -64,7 +64,7 @@ impl AuthService {
 
         let user = self
             .user_repo
-            .create_user(&req.email, &password_hash)
+            .create_user(&req.email, &password_hash, &req.name, &req.phone_number)
             .await
             .map_err(|e| HttpError::InternalServerError(e.into()))?;
 
