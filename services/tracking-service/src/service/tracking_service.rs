@@ -2,20 +2,21 @@ use crate::models::dto::{
     AddTrackingRequest, AddTrackingResponse, GetShipmentResponse, GetShipmentsResponse,
     TrackingEventRes,
 };
-use crate::models::event::TrackingEvent;
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
 use crate::models::shipment::{
     Shipment, ShipmentSource, ShipmentStatus, ShipmentStatusParse, ShipmentSubscription,
+    TrackingJob,
 };
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
 use crate::repository::tracking_event_repo::TrackingEventRepo;
+use crate::repository::tracking_job_repo::TrackingJobRepository;
 use anyhow::anyhow;
 use biteship::BiteshipUseCase;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use errors::error::HttpError;
 use lapin::BasicProperties;
 use lapin::options::BasicPublishOptions;
@@ -30,6 +31,7 @@ pub struct TrackingService {
     pub shipment_subs_repo: ShipmentSubsRepository,
     pub map_status_repo: ShipmentStatusMappingRepository,
     pub tracking_event_repo: TrackingEventRepo,
+    pub tracking_job_repo: TrackingJobRepository,
     pub biteship_uc: BiteshipUseCase,
     pub rabbitmq_channel: lapin::Channel,
 }
@@ -40,6 +42,7 @@ impl TrackingService {
         shipment_subs_repo: ShipmentSubsRepository,
         map_status_repo: ShipmentStatusMappingRepository,
         tracking_event_repo: TrackingEventRepo,
+        tracking_job_repo: TrackingJobRepository,
         biteship_uc: BiteshipUseCase,
         rabbitmq_channel: lapin::Channel,
     ) -> Self {
@@ -48,6 +51,7 @@ impl TrackingService {
             shipment_subs_repo,
             map_status_repo,
             tracking_event_repo,
+            tracking_job_repo,
             biteship_uc,
             rabbitmq_channel,
         }
@@ -114,6 +118,18 @@ impl TrackingService {
 
         self.shipment_subs_repo
             .save(subs)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        let job = TrackingJob {
+            shipment_id: shipment.id,
+            next_run_at: Utc::now() + Duration::hours(6),
+            interval_minutes: Duration::hours(6).num_minutes(),
+            attempt: 0,
+        };
+
+        self.tracking_job_repo
+            .save(&job)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
