@@ -1,182 +1,305 @@
 openapi: 3.0.3
 info:
   title: LogiTrack API
-  description: Tracking & Notification Service for shipment monitoring
-  version: 1.0.0
+  description: |
+    LogiTrack is a shipment tracking and notification platform. It provides APIs
+    for user authentication, shipment lifecycle management, real-time tracking
+    events, notification preferences, and courier webhook integrations.
+
+    ## Architecture Overview
+
+    The API is served through a **Gateway Service** (reverse proxy) that routes
+    requests to the appropriate backend microservice:
+
+    | Prefix              | Backend Service     |
+    |---------------------|---------------------|
+    | `/api/auth/*`       | auth-service        |
+    | `/api/user/*`       | auth-service        |
+    | `/api/shipments/*`  | tracking-service    |
+    | `/api/webhooks/*`   | webhook-service     |
+
+    ## Authentication
+
+    Protected endpoints require one of the following:
+
+    - **Bearer JWT** – Obtained via `/api/auth/login`. Passed in the
+      `Authorization: Bearer <token>` header. Uses RS256 algorithm. The JWT
+      `sub` claim carries the user UUID.
+    - **API Key** – Obtained via `/api/auth/api-keys`. Passed in the
+      `X-Api-Key` header. Validated against auth-service with Redis caching.
+
+    The gateway injects `X-User-Id` (for JWT) or `X-Client-Id` (for API Key)
+    downstream.
+
+    ## Error Handling
+
+    All error responses use a consistent JSON envelope:
+    ```json
+    { "error": "<human-readable message>" }
+    ```
+  version: 1.1.0
+  contact:
+    name: LogiTrack Team
 
 servers:
-  - url: http://localhost:8080/api/v1
-    description: Local development
-
-security:
-  - BearerAuth: []
+  - url: http://localhost:8080
+    description: Local development (Gateway)
 
 tags:
   - name: Auth
+    description: User registration, login, and API key management
+  - name: User Preferences
+    description: Notification preference management
   - name: Shipments
-  - name: Events
-  - name: Notifications
+    description: Shipment tracking lifecycle
+  - name: Tracking Events
+    description: Detailed tracking event history for shipments
+  - name: Notification Logs
+    description: Notification delivery logs for shipments
+  - name: Webhooks
+    description: Inbound courier webhook endpoints
   - name: System
+    description: Health checks and diagnostics
 
 paths:
 
-  /auth/register:
+  # ─────────────────────────────────────────────────────────
+  # AUTH – Public
+  # ─────────────────────────────────────────────────────────
+
+  /api/auth/register:
     post:
+      operationId: registerUser
       tags: [Auth]
-      summary: Register new user
+      summary: Register a new user account
+      description: |
+        Creates a new user with email/password credentials.
+        The email must be unique across the system.
+        This is a **public** endpoint (no authentication required).
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/RegisterRequest"
+            example:
+              email: john@example.com
+              password: secureP@ss123
+              name: John Doe
+              phone_number: "+6281234567890"
       responses:
         "201":
-          description: User registered
+          description: User registered successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: User registered successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /auth/login:
+  /api/auth/login:
     post:
+      operationId: loginUser
       tags: [Auth]
-      summary: Login user
+      summary: Authenticate user and obtain JWT
+      description: |
+        Authenticates a user with email and password, returning a signed
+        RS256 JWT access token. The token `sub` claim contains the user UUID.
+        This is a **public** endpoint (no authentication required).
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: john@example.com
+              password: secureP@ss123
       responses:
         "200":
-          description: Login success
+          description: Authentication successful
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
+              example:
+                access_token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+                expires_in: 86400
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /shipments:
-    get:
-      tags: [Shipments]
-      summary: List user shipments
-      parameters:
-        - in: query
-          name: status
-          schema:
-            $ref: "#/components/schemas/ShipmentStatus"
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 10
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        "200":
-          description: Shipment list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ShipmentList"
+  # ─────────────────────────────────────────────────────────
+  # AUTH – Protected (API Keys)
+  # ─────────────────────────────────────────────────────────
 
+  /api/auth/api-keys:
     post:
-      tags: [Shipments]
-      summary: Add shipment tracking
+      operationId: createApiKey
+      tags: [Auth]
+      summary: Create a new API key
+      description: |
+        Generates a new API key for machine-to-machine authentication.
+        The raw API key is returned **only once** in the response and cannot
+        be retrieved again. Store it securely.
+
+        Requires a valid JWT in the `Authorization` header.
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateShipmentRequest"
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+            example:
+              name: Production Integration
       responses:
         "201":
-          description: Shipment created
+          description: API key created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Shipment"
+                $ref: "#/components/schemas/CreateApiKeyResponse"
+              example:
+                api_key: ltk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+                client_id: 550e8400-e29b-41d4-a716-446655440000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /shipments/{id}:
     get:
-      tags: [Shipments]
-      summary: Get shipment detail
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
+      operationId: listApiKeys
+      tags: [Auth]
+      summary: List all API keys for the authenticated user
+      description: |
+        Returns metadata for all API keys belonging to the authenticated user.
+        The raw key values are **not** included for security.
+
+        Requires a valid JWT in the `Authorization` header.
+      security:
+        - BearerAuth: []
       responses:
         "200":
-          description: Shipment detail
+          description: List of API key metadata
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ShipmentDetail"
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKeyInfo"
+              example:
+                - id: 550e8400-e29b-41d4-a716-446655440010
+                  name: Production Integration
+                  active: true
+                  created_at: "2024-01-15T10:30:00Z"
+                - id: 550e8400-e29b-41d4-a716-446655440011
+                  name: Staging Key
+                  active: false
+                  created_at: "2024-01-20T14:45:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
+  /api/auth/api-keys/{id}:
     delete:
-      tags: [Shipments]
-      summary: Delete shipment
+      operationId: revokeApiKey
+      tags: [Auth]
+      summary: Revoke an API key
+      description: |
+        Permanently revokes an API key by its ID. The key will immediately
+        stop working for authentication. Only the owner of the key can
+        revoke it.
+
+        Requires a valid JWT in the `Authorization` header.
+      security:
+        - BearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/ApiKeyIdPath"
       responses:
         "200":
-          description: Shipment deleted
+          description: API key revoked
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: API key revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /shipments/{id}/events:
+  # ─────────────────────────────────────────────────────────
+  # USER PREFERENCES – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/user/preferences/notification:
     get:
-      tags: [Events]
-      summary: Get shipment events
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
+      operationId: getNotificationPreferences
+      tags: [User Preferences]
+      summary: Get current notification channel preferences
+      description: |
+        Returns the list of notification channels the authenticated user
+        has enabled (e.g., `WHATSAPP`, `EMAIL`).
+
+        Requires a valid JWT or API Key.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         "200":
-          description: Shipment events
+          description: Current notification channels
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ShipmentEventList"
+                $ref: "#/components/schemas/GetNotificationPreferencesResponse"
+              example:
+                - WHATSAPP
+                - EMAIL
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /notifications/preferences:
-    get:
-      tags: [Notifications]
-      summary: Get notification preferences
-      responses:
-        "200":
-          description: Notification preferences
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationPreference"
+    patch:
+      operationId: updateNotificationPreferences
+      tags: [User Preferences]
+      summary: Update notification channel preferences
+      description: |
+        Replaces the user's default notification channels with the provided list.
+        Only the channels listed in the request will be active after the update.
 
-    put:
-      tags: [Notifications]
-      summary: Update notification preferences
+        Requires a valid JWT or API Key.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NotificationPreference"
+              $ref: "#/components/schemas/UpdateNotifPrefRequest"
+            example:
+              channels:
+                - EMAIL
       responses:
         "200":
           description: Preferences updated
@@ -184,58 +307,537 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: User notification preferences updated successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /notifications/test:
+  # ─────────────────────────────────────────────────────────
+  # SHIPMENTS – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/shipments:
     post:
-      tags: [Notifications]
-      summary: Send test notification
+      operationId: addTracking
+      tags: [Shipments]
+      summary: Add a shipment to track
+      description: |
+        Registers a new shipment for tracking. Provide the air waybill number
+        (AWB), courier code, a user-friendly label, whether the shipment is
+        internal (created by this system) or external, and which status changes
+        should trigger notifications.
+
+        A tracking job will be created to poll the courier for status updates.
+
+        Requires a valid JWT or API Key.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TestNotificationRequest"
+              $ref: "#/components/schemas/AddTrackingRequest"
+            example:
+              awb: "JNE1234567890"
+              courier_code: jne
+              label: Electronics Order
+              is_internal: false
+              notify_on:
+                - WHATSAPP
+                - EMAIL
       responses:
         "200":
-          description: Test notification sent
+          description: Shipment tracking added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
+                $ref: "#/components/schemas/AddTrackingResponse"
+              example:
+                message: Tracking added successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
-  /health:
     get:
-      tags: [System]
-      summary: Health check
-      security: []
+      operationId: listShipments
+      tags: [Shipments]
+      summary: List all shipments for the authenticated user
+      description: |
+        Returns all shipments the authenticated user is subscribed to,
+        including current status and metadata.
+
+        Requires a valid JWT or API Key.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         "200":
-          description: Service healthy
+          description: Array of shipments
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthResponse"
+                $ref: "#/components/schemas/GetShipmentsResponse"
+              example:
+                - id: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+                  waybill_id: "JNE1234567890"
+                  courier_code: jne
+                  source: EXTERNAL
+                  order_id: null
+                  external_order_ref: null
+                  current_status: IN_TRANSIT
+                  created_at: "2024-01-16T09:15:00Z"
+                  updated_at: "2024-01-17T14:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/shipments/{id}:
+    get:
+      operationId: getShipmentById
+      tags: [Shipments]
+      summary: Get shipment detail with tracking events
+      description: |
+        Returns full shipment details including all tracking events
+        (status history). Events are ordered chronologically.
+
+        Requires a valid JWT or API Key. The user must be subscribed
+        to this shipment.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ShipmentIdPath"
+      responses:
+        "200":
+          description: Shipment detail with events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetShipmentResponse"
+              example:
+                id: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+                waybill_id: "JNE1234567890"
+                courier_code: jne
+                source: EXTERNAL
+                order_id: null
+                external_order_ref: null
+                current_status: IN_TRANSIT
+                created_at: "2024-01-16T09:15:00Z"
+                updated_at: "2024-01-17T14:30:00Z"
+                events:
+                  - status: CREATED
+                    description: "Shipment has been created"
+                    occurred_at: "2024-01-16T09:15:00Z"
+                  - status: IN_TRANSIT
+                    description: "Package in transit to destination hub"
+                    occurred_at: "2024-01-17T14:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      operationId: deleteShipmentById
+      tags: [Shipments]
+      summary: Delete (unsubscribe from) a shipment
+      description: |
+        Removes the authenticated user's subscription to a shipment.
+        Returns `200 OK` with an empty body on success.
+
+        Requires a valid JWT or API Key. The user must be subscribed
+        to this shipment.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ShipmentIdPath"
+      responses:
+        "200":
+          description: Shipment deleted / unsubscribed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # TRACKING EVENTS – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/shipments/{id}/events:
+    get:
+      operationId: getShipmentEvents
+      tags: [Tracking Events]
+      summary: Get tracking events for a shipment
+      description: |
+        Returns a chronological list of all tracking events (status
+        transitions) for the specified shipment. Each event includes
+        the normalized status, a description, and the time it occurred.
+
+        Requires a valid JWT or API Key.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ShipmentIdPath"
+      responses:
+        "200":
+          description: List of tracking events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrackingEvent"
+              example:
+                - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  shipment_id: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+                  raw_status: picked
+                  normalized_status: RECEIVED
+                  description: "Package picked up by courier"
+                  occurred_at: "2024-01-16T10:00:00Z"
+                  source: webhook
+                  created_at: "2024-01-16T10:01:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # NOTIFICATION LOGS – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/shipments/{id}/notifications:
+    get:
+      operationId: getShipmentNotificationLogs
+      tags: [Notification Logs]
+      summary: List notification logs for a shipment
+      description: |
+        Returns all notification delivery logs for the specified shipment,
+        ordered by most recent first. Each log entry records a notification
+        sent (or attempted) through a specific channel.
+
+        Requires a valid JWT or API Key. The user must own the shipment.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ShipmentIdPath"
+      responses:
+        "200":
+          description: Array of notification logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationLog"
+              example:
+                - id: f1a2b3c4-d5e6-7890-abcd-1234567890ab
+                  shipment_id: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+                  event_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  channel: EMAIL
+                  recipient_to: john@example.com
+                  message_content: "Your shipment JNE1234567890 status updated to IN_TRANSIT"
+                  status: SENT
+                  error_message: null
+                  sent_at: "2024-01-17T14:31:00Z"
+                  created_at: "2024-01-17T14:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/shipments/{id}/notifications/{notification_id}:
+    get:
+      operationId: getShipmentNotificationLogById
+      tags: [Notification Logs]
+      summary: Get a single notification log by ID
+      description: |
+        Returns a single notification log entry for the specified shipment.
+        The notification must belong to the given shipment.
+
+        Requires a valid JWT or API Key. The user must own the shipment.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ShipmentIdPath"
+        - $ref: "#/components/parameters/NotificationLogIdPath"
+      responses:
+        "200":
+          description: Notification log detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationLog"
+              example:
+                id: f1a2b3c4-d5e6-7890-abcd-1234567890ab
+                shipment_id: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+                event_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                channel: EMAIL
+                recipient_to: john@example.com
+                message_content: "Your shipment JNE1234567890 status updated to IN_TRANSIT"
+                status: SENT
+                error_message: null
+                sent_at: "2024-01-17T14:31:00Z"
+                created_at: "2024-01-17T14:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # WEBHOOKS – Public (authenticated via webhook secret)
+  # ─────────────────────────────────────────────────────────
+
+  /api/webhooks/biteship/status:
+    post:
+      operationId: biteshipStatusWebhook
+      tags: [Webhooks]
+      summary: Receive Biteship courier status change webhook
+      description: |
+        Inbound webhook endpoint called by Biteship when a shipment's
+        status changes. The request is authenticated via a webhook key/secret
+        pair sent in the request headers (configured via `BITESHIP_WEBHOOK_KEY`
+        and `BITESHIP_WEBHOOK_SECRET` environment variables).
+
+        This endpoint is **not** protected by JWT/API Key — it uses
+        Biteship's own webhook authentication mechanism.
+      security:
+        - BiteshipWebhookAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BiteshipChangeStatusEvent"
+            example:
+              event: order.status
+              order_id: "ORD-12345"
+              order_price: 150000
+              courier_tracking_id: "TRACK-ABC"
+              courier_waybill_id: "JNE1234567890"
+              courier_company: jne
+              courier_type: reg
+              courier_driver_name: "Budi"
+              courier_driver_phone: "+6281234567890"
+              courier_driver_plate_number: "B 1234 ABC"
+              courier_driver_photo_url: "https://example.com/photo.jpg"
+              courier_link: "https://biteship.com/track/123"
+              status: delivered
+              updated_at: "2024-01-17T14:30:00Z"
+      responses:
+        "200":
+          description: Webhook processed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Webhook authentication failed
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: Unauthorized
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ═══════════════════════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════════════════════
 
 components:
+
+  # ─────────────────────────────────────────────────────────
+  # Security Schemes
+  # ─────────────────────────────────────────────────────────
 
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        RS256 JWT obtained from `/api/auth/login`. The `sub` claim
+        contains the user UUID. Token lifetime is returned in the
+        `expires_in` field of the login response (seconds).
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        Machine-to-machine API key created via `/api/auth/api-keys`.
+        Validated by the gateway through the auth-service, with a
+        Redis cache layer (5 min TTL for valid keys, 1 min for invalid).
+
+    BiteshipWebhookAuth:
+      type: apiKey
+      in: header
+      name: X-Biteship-Webhook-Key
+      description: |
+        Webhook authentication for Biteship callbacks. The header name
+        is configured via `BITESHIP_WEBHOOK_KEY` env var and the expected
+        value via `BITESHIP_WEBHOOK_SECRET`.
+
+  # ─────────────────────────────────────────────────────────
+  # Reusable Parameters
+  # ─────────────────────────────────────────────────────────
+
+  parameters:
+    ShipmentIdPath:
+      name: id
+      in: path
+      required: true
+      description: UUID of the shipment
+      schema:
+        type: string
+        format: uuid
+      example: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+
+    ApiKeyIdPath:
+      name: id
+      in: path
+      required: true
+      description: UUID of the API key to operate on
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440010
+
+    NotificationLogIdPath:
+      name: notification_id
+      in: path
+      required: true
+      description: UUID of the notification log entry
+      schema:
+        type: string
+        format: uuid
+      example: f1a2b3c4-d5e6-7890-abcd-1234567890ab
+
+  # ─────────────────────────────────────────────────────────
+  # Reusable Responses
+  # ─────────────────────────────────────────────────────────
+
+  responses:
+    BadRequest:
+      description: Invalid request — malformed JSON, missing fields, or validation failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Invalid request: missing field `email`"
+
+    Unauthorized:
+      description: Authentication failed — missing, expired, or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Unauthorized: Invalid JWT: ExpiredSignature"
+
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Shipment not found"
+
+    Conflict:
+      description: Resource conflict — e.g., duplicate email or tracking entry
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Conflict: User with this email already exists"
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Something went wrong
+
+  # ─────────────────────────────────────────────────────────
+  # Schemas
+  # ─────────────────────────────────────────────────────────
 
   schemas:
 
+    # ── Error ──────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+      example:
+        error: Something went wrong
+
+    # ── Auth Request / Response ────────────────────────────
+
     RegisterRequest:
       type: object
-      required: [email, password]
+      required: [email, password, name, phone_number]
       properties:
         email:
           type: string
           format: email
+          description: Unique email address for the account
+          example: john@example.com
         password:
           type: string
-          minLength: 6
+          description: Account password
+          minLength: 1
+          example: secureP@ss123
+        name:
+          type: string
+          description: Full name of the user
+          example: John Doe
+        phone_number:
+          type: string
+          description: Phone number (used for WhatsApp notifications)
+          example: "+6281234567890"
 
     LoginRequest:
       type: object
@@ -244,131 +846,480 @@ components:
         email:
           type: string
           format: email
+          description: Registered email address
+          example: john@example.com
         password:
           type: string
+          description: Account password
+          example: secureP@ss123
 
     LoginResponse:
       type: object
+      required: [access_token, expires_in]
       properties:
         access_token:
           type: string
+          description: Signed RS256 JWT token
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
         expires_in:
           type: integer
+          format: int64
+          description: Token lifetime in seconds
+          example: 86400
 
-    User:
+    # ── API Keys ───────────────────────────────────────────
+
+    CreateApiKeyRequest:
       type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Human-readable label for the API key
+          example: Production Integration
+
+    CreateApiKeyResponse:
+      type: object
+      required: [api_key, client_id]
+      properties:
+        api_key:
+          type: string
+          description: |
+            The raw API key value. This is only returned once at creation
+            time and cannot be retrieved again.
+          example: ltk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+        client_id:
+          type: string
+          format: uuid
+          description: UUID identifying this API key's owner
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    ApiKeyInfo:
+      type: object
+      required: [id, name, active]
       properties:
         id:
           type: string
           format: uuid
-        email:
+          description: Unique identifier of the API key
+          example: 550e8400-e29b-41d4-a716-446655440010
+        name:
           type: string
-
-    CreateShipmentRequest:
-      type: object
-      required: [tracking_number, courier]
-      properties:
-        tracking_number:
-          type: string
-        courier:
-          type: string
-          example: jne
-
-    Shipment:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        tracking_number:
-          type: string
-        courier:
-          type: string
-        status:
-          $ref: "#/components/schemas/ShipmentStatus"
+          description: Human-readable label
+          example: Production Integration
+        active:
+          type: boolean
+          description: Whether the key is currently active
+          example: true
         created_at:
           type: string
           format: date-time
+          nullable: true
+          description: When the key was created
+          example: "2024-01-15T10:30:00Z"
 
-    ShipmentDetail:
-      allOf:
-        - $ref: "#/components/schemas/Shipment"
-        - type: object
-          properties:
-            events:
-              type: array
-              items:
-                $ref: "#/components/schemas/ShipmentEvent"
+    # ── Notification Preferences ───────────────────────────
 
-    ShipmentList:
+    NotificationChannel:
+      type: string
+      enum:
+        - WHATSAPP
+        - EMAIL
+      description: Supported notification delivery channels
+
+    GetNotificationPreferencesResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/NotificationChannel"
+      description: List of currently enabled notification channels
+      example:
+        - WHATSAPP
+        - EMAIL
+
+    UpdateNotifPrefRequest:
       type: object
+      required: [channels]
       properties:
-        data:
+        channels:
           type: array
           items:
-            $ref: "#/components/schemas/Shipment"
+            $ref: "#/components/schemas/NotificationChannel"
+          description: The complete set of channels to enable
+          example:
+            - EMAIL
 
-    ShipmentEvent:
-      type: object
-      properties:
-        status:
-          $ref: "#/components/schemas/ShipmentStatus"
-        description:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-
-    ShipmentEventList:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ShipmentEvent"
-
-    NotificationPreference:
-      type: object
-      properties:
-        email:
-          type: boolean
-        telegram:
-          type: boolean
-        whatsapp:
-          type: boolean
-        notify_on:
-          type: array
-          items:
-            $ref: "#/components/schemas/ShipmentStatus"
-
-    TestNotificationRequest:
-      type: object
-      required: [channel]
-      properties:
-        channel:
-          type: string
-          enum: [email, telegram, whatsapp]
+    # ── Shipments ──────────────────────────────────────────
 
     ShipmentStatus:
       type: string
       enum:
         - CREATED
-        - PICKED_UP
+        - RECEIVED
         - IN_TRANSIT
         - OUT_FOR_DELIVERY
         - DELIVERED
-        - DELAYED
         - FAILED
+        - RETURNED
+        - CANCELLED
+        - UNKNOWN
+      description: |
+        Normalized shipment status. Raw courier-specific statuses
+        are mapped to these values via the `status_mappings` table.
 
-    MessageResponse:
+    ShipmentSource:
+      type: string
+      enum:
+        - Internal
+        - External
+      description: |
+        Whether the shipment was created within the LogiTrack platform
+        (`Internal`) or imported from an external system (`External`).
+
+    Shipment:
       type: object
+      required:
+        - id
+        - waybill_id
+        - courier_code
+        - source
+        - current_status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique shipment identifier
+          example: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+        waybill_id:
+          type: string
+          description: Air waybill / tracking number
+          example: "JNE1234567890"
+        courier_code:
+          type: string
+          description: Courier company code
+          example: jne
+        source:
+          $ref: "#/components/schemas/ShipmentSource"
+        order_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated order UUID (if any)
+          example: null
+        external_order_ref:
+          type: string
+          nullable: true
+          description: External system order reference
+          example: null
+        current_status:
+          $ref: "#/components/schemas/ShipmentStatus"
+        created_at:
+          type: string
+          format: date-time
+          description: When the shipment was first recorded
+          example: "2024-01-16T09:15:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: When the shipment was last updated
+          example: "2024-01-17T14:30:00Z"
+
+    AddTrackingRequest:
+      type: object
+      required: [awb, courier_code, label, is_internal, notify_on]
+      properties:
+        awb:
+          type: string
+          description: Air waybill / tracking number from the courier
+          example: "JNE1234567890"
+        courier_code:
+          type: string
+          description: Courier company code (e.g., `jne`, `sicepat`, `anteraja`)
+          example: jne
+        label:
+          type: string
+          description: User-friendly label for this shipment
+          example: Electronics Order
+        is_internal:
+          type: boolean
+          description: |
+            `true` if this shipment was created by the LogiTrack platform itself,
+            `false` if imported from an external source.
+          example: false
+        notify_on:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationChannel"
+          description: Which notification channels to use for status updates
+          example:
+            - WHATSAPP
+            - EMAIL
+
+    AddTrackingResponse:
+      type: object
+      required: [message]
       properties:
         message:
           type: string
+          description: Confirmation message
+          example: Tracking added successfully
 
-    HealthResponse:
+    GetShipmentsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/Shipment"
+      description: Array of shipments the user is subscribed to
+
+    GetShipmentResponse:
       type: object
+      description: |
+        Full shipment details with embedded tracking events.
+        The shipment fields are flattened at the top level.
+      allOf:
+        - $ref: "#/components/schemas/Shipment"
+        - type: object
+          required: [events]
+          properties:
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrackingEventSummary"
+              description: Chronological list of tracking events
+
+    # ── Tracking Events ────────────────────────────────────
+
+    TrackingEventSource:
+      type: string
+      enum:
+        - polling
+        - webhook
+      description: How the tracking event was captured
+
+    TrackingEvent:
+      type: object
+      description: Full tracking event record from the database
+      required:
+        - id
+        - shipment_id
+        - raw_status
+        - normalized_status
+        - description
+        - occurred_at
+        - source
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        shipment_id:
+          type: string
+          format: uuid
+          description: Associated shipment UUID
+          example: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+        raw_status:
+          type: string
+          description: Original status string from the courier
+          example: picked
+        normalized_status:
+          $ref: "#/components/schemas/ShipmentStatus"
+        description:
+          type: string
+          description: Human-readable event description
+          example: Package picked up by courier
+        occurred_at:
+          type: string
+          format: date-time
+          description: When the event actually occurred at the courier
+          example: "2024-01-16T10:00:00Z"
+        source:
+          $ref: "#/components/schemas/TrackingEventSource"
+        created_at:
+          type: string
+          format: date-time
+          description: When the event was recorded in LogiTrack
+          example: "2024-01-16T10:01:00Z"
+
+    TrackingEventSummary:
+      type: object
+      description: |
+        Simplified tracking event used in the shipment detail response.
+        Contains the normalized status (as `status`), description, and
+        occurrence time.
+      required: [status, description, occurred_at]
       properties:
         status:
           type: string
-          example: ok
+          description: Normalized status (renamed from `normalized_status`)
+          example: RECEIVED
+        description:
+          type: string
+          description: Human-readable event description
+          example: Package picked up by courier
+        occurred_at:
+          type: string
+          format: date-time
+          description: When the event occurred
+          example: "2024-01-16T10:00:00Z"
+
+    # ── Notification Logs ─────────────────────────────────
+
+    NotificationLog:
+      type: object
+      description: Record of a notification sent (or attempted) for a shipment event
+      required:
+        - id
+        - channel
+        - recipient_to
+        - message_content
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique notification log identifier
+          example: f1a2b3c4-d5e6-7890-abcd-1234567890ab
+        shipment_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated shipment UUID
+          example: e975bb9f-c0b5-4fe5-a20d-e34eba31dafa
+        event_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated tracking event UUID
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        channel:
+          $ref: "#/components/schemas/NotificationChannel"
+        recipient_to:
+          type: string
+          description: Recipient address (email or phone number)
+          example: john@example.com
+        message_content:
+          type: string
+          description: Content of the notification message
+          example: "Your shipment JNE1234567890 status updated to IN_TRANSIT"
+        status:
+          type: string
+          description: |
+            Delivery status of the notification.
+            Possible values: `PENDING`, `SENT`, `FAILED`
+          example: SENT
+        error_message:
+          type: string
+          nullable: true
+          description: Error details if the notification failed
+          example: null
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification was successfully sent
+          example: "2024-01-17T14:31:00Z"
+        created_at:
+          type: string
+          format: date-time
+          description: When the log entry was created
+          example: "2024-01-17T14:30:00Z"
+
+    # ── Webhook Payloads ───────────────────────────────────
+
+    BiteshipChangeStatusEvent:
+      type: object
+      description: Biteship order status change webhook payload
+      required:
+        - event
+        - order_id
+        - order_price
+        - courier_tracking_id
+        - courier_waybill_id
+        - courier_company
+        - courier_type
+        - courier_driver_name
+        - courier_driver_phone
+        - courier_driver_plate_number
+        - courier_driver_photo_url
+        - courier_link
+        - status
+        - updated_at
+      properties:
+        event:
+          type: string
+          description: Biteship event type
+          example: order.status
+        order_id:
+          type: string
+          description: Biteship order identifier
+          example: "ORD-12345"
+        order_price:
+          type: integer
+          format: int32
+          description: Order price in smallest currency unit
+          example: 150000
+        courier_tracking_id:
+          type: string
+          description: Courier tracking identifier
+          example: "TRACK-ABC"
+        courier_waybill_id:
+          type: string
+          description: Courier waybill / AWB number
+          example: "JNE1234567890"
+        courier_company:
+          type: string
+          description: Courier company code
+          example: jne
+        courier_type:
+          type: string
+          description: Courier service type
+          example: reg
+        courier_driver_name:
+          type: string
+          description: Name of the assigned driver
+          example: Budi
+        courier_driver_phone:
+          type: string
+          description: Driver's phone number
+          example: "+6281234567890"
+        courier_driver_plate_number:
+          type: string
+          description: Driver's vehicle plate number
+          example: "B 1234 ABC"
+        courier_driver_photo_url:
+          type: string
+          description: URL to the driver's photo
+          example: "https://example.com/photo.jpg"
+        courier_link:
+          type: string
+          description: Biteship tracking page URL
+          example: "https://biteship.com/track/123"
+        status:
+          type: string
+          description: |
+            Raw Biteship status string. Known values:
+            `confirmed`, `allocated`, `picking_up`, `picked`,
+            `dropping_off`, `on_hold`, `return_in_transit`,
+            `delivered`, `returned`, `rejected`,
+            `courier_not_found`, `disposed`, `cancelled`
+          example: delivered
+        updated_at:
+          type: string
+          format: date-time
+          description: When the status change occurred
+          example: "2024-01-17T14:30:00Z"
+
+    # ── Generic Response ───────────────────────────────────
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Human-readable response message
+      example:
+        message: Operation completed successfully
