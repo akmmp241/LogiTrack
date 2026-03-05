@@ -33,7 +33,7 @@ pub enum TrackingEventSource {
     Webhook,
 }
 
-#[derive(Type, Debug, Clone, Serialize, Deserialize)]
+#[derive(Type, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "notification_channel", rename_all = "UPPERCASE")]
 pub enum NotificationChannel {
@@ -136,4 +136,12 @@ pub trait LogisticsProvider: Send + Sync {
         waybill_id: &str,
         courier_code: &str,
     ) -> Result<TrackingResult, anyhow::Error>;
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct UserWithNotifPref {
+    pub id: Uuid,
+    pub phone_number: String,
+    pub email: String,
+    pub default_channels: Vec<NotificationChannel>,
 }

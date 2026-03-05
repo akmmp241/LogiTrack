@@ -180,51 +180,55 @@ async fn publish_status_change_events(
     job: &ShipmentWithJob,
     new_status: &ShipmentStatus,
 ) -> Result<(), anyhow::Error> {
-    let subscriptions = repo.get_shipment_subscriptions(job.shipment_id).await?;
+    let sub = repo.get_shipment_subscriptions(job.shipment_id).await?;
 
-    for sub in subscriptions {
-        if !sub.subscribed_statuses.contains(new_status) {
+    if !sub.subscribed_statuses.contains(new_status) {
+        return Ok(());
+    }
+
+    let user = repo.get_user_by_id(&sub.user_id).await?;
+
+    for ch in &sub.subscribed_channels {
+        if !user.default_channels.contains(ch) {
             continue;
         }
 
-        for ch in &sub.subscribed_channels {
-            let recipient = match ch {
-                NotificationChannel::Whatsapp => "6285158824017",
-                NotificationChannel::Email => "akmalmp241@gmail.com",
-            };
+        let recipient = match ch {
+            NotificationChannel::Whatsapp => user.phone_number.clone(),
+            NotificationChannel::Email => user.email.clone(),
+        };
 
-            let msg = TrackingEventMsg {
-                message_id: Uuid::new_v4(),
-                event_type: TrackingEventMsgType::TrackingStatusUpdated,
-                channel: ch.clone(),
-                user_id: sub.user_id,
-                recipient: recipient.to_string(),
-                template_code: "TRACKING_STATUS".to_string(),
-                payload: TrackingMsgPayload {
-                    shipment_id: job.shipment_id,
-                    waybill_id: job.waybill_id.clone(),
-                    status: new_status.to_string().to_lowercase(),
-                    courier: job.courier_code.clone(),
-                },
-            };
+        let msg = TrackingEventMsg {
+            message_id: Uuid::new_v4(),
+            event_type: TrackingEventMsgType::TrackingStatusUpdated,
+            channel: ch.clone(),
+            user_id: sub.user_id,
+            recipient: recipient.to_string(),
+            template_code: "TRACKING_STATUS".to_string(),
+            payload: TrackingMsgPayload {
+                shipment_id: job.shipment_id,
+                waybill_id: job.waybill_id.clone(),
+                status: new_status.to_string().to_lowercase(),
+                courier: job.courier_code.clone(),
+            },
+        };
 
-            let payload = serde_json::to_vec(&msg)?;
+        let payload = serde_json::to_vec(&msg)?;
 
-            let confirm = channel
-                .basic_publish(
-                    EXCHANGE_NAME,
-                    &format!(
-                        "notification.tracking_status_changed.{}",
-                        ch.to_string().to_lowercase()
-                    ),
-                    BasicPublishOptions::default(),
-                    &payload,
-                    BasicProperties::default().with_delivery_mode(2),
-                )
-                .await?;
+        let confirm = channel
+            .basic_publish(
+                EXCHANGE_NAME,
+                &format!(
+                    "notification.tracking_status_changed.{}",
+                    ch.to_string().to_lowercase()
+                ),
+                BasicPublishOptions::default(),
+                &payload,
+                BasicProperties::default().with_delivery_mode(2),
+            )
+            .await?;
 
-            confirm.await?;
-        }
+        confirm.await?;
     }
 
     Ok(())

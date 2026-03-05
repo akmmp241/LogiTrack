@@ -1,8 +1,9 @@
 use crate::domain::{
     ShipmentStatus, ShipmentSubscription, ShipmentWithJob, StatusMapping, TrackingEventSource,
+    UserWithNotifPref,
 };
 use chrono::{DateTime, Utc};
-use sqlx::{Pool, Postgres};
+use sqlx::{Error, Pool, Postgres};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -153,8 +154,8 @@ impl PollingRepository {
     pub async fn get_shipment_subscriptions(
         &self,
         shipment_id: Uuid,
-    ) -> Result<Vec<ShipmentSubscription>, sqlx::Error> {
-        let subs: Vec<ShipmentSubscription> = sqlx::query_as(
+    ) -> Result<ShipmentSubscription, sqlx::Error> {
+        let subs: ShipmentSubscription = sqlx::query_as(
             r#"
             SELECT id, user_id, shipment_id,
                    subscribed_statuses, subscribed_channels,
@@ -164,9 +165,25 @@ impl PollingRepository {
             "#,
         )
         .bind(shipment_id)
-        .fetch_all(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
 
         Ok(subs)
+    }
+
+    pub async fn get_user_by_id(&self, user_id: &Uuid) -> Result<UserWithNotifPref, Error> {
+        let result = sqlx::query_as::<_, UserWithNotifPref>(
+            r#"
+                SELECT u.id, u.phone_number, u.email, unp.default_channels
+                FROM users u
+                    INNER JOIN user_notification_preferences unp ON u.id = unp.user_id
+                WHERE u.id = $1;
+                "#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result)
     }
 }
