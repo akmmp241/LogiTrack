@@ -3,8 +3,9 @@ use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingReposi
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
 use crate::repository::tracking_event_repo::TrackingEventRepo;
 use crate::repository::tracking_job_repo::TrackingJobRepository;
+use crate::repository::user_repo::UserRepository;
 use crate::routes::routes;
-use crate::service::tracking_service::TrackingService;
+use crate::service::tracking_service::{Repositories, TrackingService};
 use axum::Router;
 use biteship::BiteshipUseCase;
 use config::postgres::get_db_connection;
@@ -35,24 +36,18 @@ impl App {
             .await
             .expect("couldn't create rabbitmq channel");
 
-        let repo = ShipmentRepository::new(db.clone()).await;
-        let map_repo = ShipmentStatusMappingRepository::new(db.clone()).await;
-        let shipment_subs_repo = ShipmentSubsRepository::new(db.clone()).await;
-        let tracking_event_repo = TrackingEventRepo::new(db.clone()).await;
-        let tracking_job_repo = TrackingJobRepository::new(db.clone());
+        let repos = Repositories {
+            shipment_repository: ShipmentRepository::new(db.clone()).await,
+            shipment_subs_repo: ShipmentSubsRepository::new(db.clone()).await,
+            map_status_repo: ShipmentStatusMappingRepository::new(db.clone()).await,
+            tracking_event_repo: TrackingEventRepo::new(db.clone()).await,
+            tracking_job_repo: TrackingJobRepository::new(db.clone()),
+            user_repo: UserRepository::new(db.clone()),
+        };
 
         let bs_uc = BiteshipUseCase::new(pool);
 
-        let service = TrackingService::new(
-            repo,
-            shipment_subs_repo,
-            map_repo,
-            tracking_event_repo,
-            tracking_job_repo,
-            bs_uc,
-            rabbitmq_channel,
-        )
-        .await;
+        let service = TrackingService::new(repos, bs_uc, rabbitmq_channel).await;
 
         let state = Arc::new(AppState { service });
 
