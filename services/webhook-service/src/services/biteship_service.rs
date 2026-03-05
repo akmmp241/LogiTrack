@@ -4,11 +4,10 @@ use crate::domain::shipment::{
     NotificationChannel, Shipment, ShipmentStatus, ShipmentSubscription, StatusMapping,
     TrackingEventSource,
 };
+use crate::domain::user::UserWithNotifPref;
 use crate::errors::ShipmentServiceError;
 use crate::services::DefaultService;
-use anyhow::anyhow;
 use chrono::Utc;
-use errors::error::HttpError;
 use lapin::BasicProperties;
 use lapin::options::BasicPublishOptions;
 use sqlx::types::Json;
@@ -93,7 +92,7 @@ impl BiteshipService {
                 ShipmentServiceError::Unexpected(e.into())
             })?;
 
-        self.log_webhook_event(&mut tx, &payload)
+        self.log_webhook_event(&mut tx, payload)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to log webhook event: {}", e);
@@ -109,22 +108,37 @@ impl BiteshipService {
             })?
             .ok_or_else(|| ShipmentServiceError::NotFound(payload.courier_waybill_id.clone()))?;
 
+        let user = self
+            .get_user_by_id(&mut tx, &shipment_subs.user_id)
+            .await
+            .map_err(|e| ShipmentServiceError::Unexpected(e.into()))?
+            .ok_or_else(|| {
+                ShipmentServiceError::NotFound(format!(
+                    "user not found. ID: {}",
+                    shipment_subs.user_id
+                ))
+            })?;
+
         tx.commit().await.map_err(|e| {
             tracing::error!("Failed to commit transaction: {}", e);
             ShipmentServiceError::Unexpected(e.into())
         })?;
 
         for ch in shipment_subs.subscribed_channels.iter() {
+            if !user.default_channels.contains(ch) {
+                continue;
+            }
+
             let recipient = match ch {
-                NotificationChannel::Whatsapp => "6285158824017",
-                NotificationChannel::Email => "akmalmp241@gmail.com",
+                NotificationChannel::Whatsapp => user.phone_number.clone(),
+                NotificationChannel::Email => user.email.clone(),
             };
 
             let payload = TrackingEventMsg {
                 message_id: Uuid::new_v4(),
                 event_type: TrackingEventMsgType::TrackingStatusUpdated,
                 channel: ch.clone(),
-                user_id: shipment_subs.user_id,
+                user_id: user.id,
                 recipient: recipient.to_string(),
                 template_code: "TRACKING_STATUS".to_string(),
                 payload: TrackingMsgPayload {
@@ -165,7 +179,7 @@ impl BiteshipService {
         &self,
         tx: &mut Transaction<'_, Postgres>,
         raw_status: &str,
-    ) -> Result<Option<StatusMapping>, sqlx::Error> {
+    ) -> Result<Option<StatusMapping>, Error> {
         let status_mapping: Option<StatusMapping> = sqlx::query_as(
             "SELECT id, platform, raw_status, normalized_status 
                     FROM status_mappings WHERE raw_status = $1",
@@ -182,7 +196,7 @@ impl BiteshipService {
         tx: &mut Transaction<'_, Postgres>,
         shipment: &Shipment,
         new_status: ShipmentStatus,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), Error> {
         let res =
             sqlx::query("UPDATE shipments SET current_status = $1, updated_at = $2 WHERE id = $3")
                 .bind(new_status)
@@ -192,7 +206,7 @@ impl BiteshipService {
                 .await?;
 
         if res.rows_affected() == 0 {
-            return Err(sqlx::Error::RowNotFound);
+            return Err(Error::RowNotFound);
         }
 
         Ok(())
@@ -202,7 +216,7 @@ impl BiteshipService {
         &self,
         tx: &mut Transaction<'_, Postgres>,
         waybill_id: &str,
-    ) -> Result<Option<Shipment>, sqlx::Error> {
+    ) -> Result<Option<Shipment>, Error> {
         let res: Option<Shipment> = sqlx::query_as(
             "SELECT id, waybill_id, courier_code,
                     source, current_status, order_id,
@@ -231,6 +245,26 @@ impl BiteshipService {
         .await?;
 
         Ok(res)
+    }
+
+    async fn get_user_by_id(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        user_id: &Uuid,
+    ) -> Result<Option<UserWithNotifPref>, Error> {
+        let result = sqlx::query_as::<_, UserWithNotifPref>(
+            r#"
+                SELECT u.id, u.phone_number, u.email, unp.default_channels
+                FROM users u
+                    INNER JOIN user_notification_preferences unp ON u.id = unp.user_id
+                WHERE u.id = $1;
+                "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        Ok(result)
     }
 }
 
