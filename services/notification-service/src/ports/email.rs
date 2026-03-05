@@ -2,7 +2,6 @@ use crate::domain;
 use crate::domain::TrackingEventMsg;
 use crate::ports::ChannelPort;
 use anyhow::anyhow;
-use config::lettre::create_smtp_transport;
 use domain::{TemplateId, TrackingMsgPayload};
 use handlebars::Handlebars;
 use lettre::message::Mailbox;
@@ -16,11 +15,7 @@ pub struct EmailSmtpSender {
 }
 
 impl EmailSmtpSender {
-    pub async fn new() -> Self {
-        let mailer = create_smtp_transport()
-            .await
-            .expect("Failed to create smtp transport");
-
+    pub fn new(mailer: AsyncSmtpTransport<Tokio1Executor>) -> Self {
         let from = env::var("SMTP_FROM_EMAIL").expect("SMTP_FROM_EMAIL must be set");
 
         Self {

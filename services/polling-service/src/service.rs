@@ -201,6 +201,7 @@ async fn publish_status_change_events(
                 recipient: recipient.to_string(),
                 template_code: "TRACKING_STATUS".to_string(),
                 payload: TrackingMsgPayload {
+                    shipment_id: job.shipment_id,
                     waybill_id: job.waybill_id.clone(),
                     status: new_status.to_string().to_lowercase(),
                     courier: job.courier_code.clone(),

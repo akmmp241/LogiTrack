@@ -9,14 +9,15 @@ lapin.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+sqlx = { workspace = true }
 dotenvy.workspace = true
-observability = { path = "../../libs/observability" }
 tracing.workspace = true
-config = { path = "../../libs/config" }
-waha = { path = "../../libs/use_case/waha" }
 async-trait.workspace = true
 uuid.workspace = true
 reqwest.workspace = true
 lettre.workspace = true
 futures-util = "0.3"
 handlebars = "6.4"
+observability = { path = "../../libs/observability" }
+config = { path = "../../libs/config" }
+waha = { path = "../../libs/use_case/waha" }

@@ -86,7 +86,6 @@ impl BiteshipService {
                 }
             })?;
 
-        let shipment_id_cln = shipment.id.clone();
         self.log_tracking_event(&mut tx, &shipment, &status_mapped)
             .await
             .map_err(|e| {
@@ -102,7 +101,7 @@ impl BiteshipService {
             })?;
 
         let shipment_subs = self
-            .get_shipment_subs(&mut tx, shipment_id_cln)
+            .get_shipment_subs(&mut tx, shipment.id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get shipment subscription: {}", e);
@@ -125,10 +124,11 @@ impl BiteshipService {
                 message_id: Uuid::new_v4(),
                 event_type: TrackingEventMsgType::TrackingStatusUpdated,
                 channel: ch.clone(),
-                user_id: shipment_subs.user_id.clone(),
+                user_id: shipment_subs.user_id,
                 recipient: recipient.to_string(),
                 template_code: "TRACKING_STATUS".to_string(),
                 payload: TrackingMsgPayload {
+                    shipment_id: shipment.id,
                     waybill_id: payload.courier_waybill_id.clone(),
                     status: shipment.current_status.clone().to_string().to_lowercase(),
                     courier: shipment.courier_code.clone(),
