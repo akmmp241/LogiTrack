@@ -9,49 +9,48 @@ use crate::models::shipment::{
     Shipment, ShipmentSource, ShipmentStatus, ShipmentStatusParse, ShipmentSubscription,
     TrackingJob,
 };
+use crate::models::user::UserWithNotifPref;
 use crate::repository::shipment_repo::ShipmentRepository;
 use crate::repository::shipment_status_mapping_repo::ShipmentStatusMappingRepository;
 use crate::repository::shipment_subscription::ShipmentSubsRepository;
 use crate::repository::tracking_event_repo::TrackingEventRepo;
 use crate::repository::tracking_job_repo::TrackingJobRepository;
+use crate::repository::user_repo::UserRepository;
 use anyhow::anyhow;
 use biteship::BiteshipUseCase;
 use chrono::{Duration, Utc};
 use errors::error::HttpError;
 use lapin::BasicProperties;
 use lapin::options::BasicPublishOptions;
-use std::str::FromStr;
 use uuid::Uuid;
 
 static EXCHANGE_NAME: &str = "notification.events";
 
 #[derive(Clone)]
-pub struct TrackingService {
+pub struct Repositories {
     pub shipment_repository: ShipmentRepository,
     pub shipment_subs_repo: ShipmentSubsRepository,
     pub map_status_repo: ShipmentStatusMappingRepository,
     pub tracking_event_repo: TrackingEventRepo,
     pub tracking_job_repo: TrackingJobRepository,
+    pub user_repo: UserRepository,
+}
+
+#[derive(Clone)]
+pub struct TrackingService {
+    pub repos: Repositories,
     pub biteship_uc: BiteshipUseCase,
     pub rabbitmq_channel: lapin::Channel,
 }
 
 impl TrackingService {
     pub async fn new(
-        shipment_repository: ShipmentRepository,
-        shipment_subs_repo: ShipmentSubsRepository,
-        map_status_repo: ShipmentStatusMappingRepository,
-        tracking_event_repo: TrackingEventRepo,
-        tracking_job_repo: TrackingJobRepository,
+        repos: Repositories,
         biteship_uc: BiteshipUseCase,
         rabbitmq_channel: lapin::Channel,
     ) -> Self {
         Self {
-            shipment_repository,
-            shipment_subs_repo,
-            map_status_repo,
-            tracking_event_repo,
-            tracking_job_repo,
+            repos,
             biteship_uc,
             rabbitmq_channel,
         }
@@ -59,8 +58,11 @@ impl TrackingService {
 
     pub async fn add_track(
         &self,
+        user_id: Uuid,
         req: &AddTrackingRequest,
     ) -> Result<AddTrackingResponse, HttpError> {
+        let user_with_notif_pref = self.get_user(&user_id).await?;
+
         let bs_resp = self
             .biteship_uc
             .fetch_public_tracking(req.awb.clone(), req.courier_code.clone())
@@ -74,6 +76,7 @@ impl TrackingService {
         let current_time = Utc::now();
 
         let status = self
+            .repos
             .map_status_repo
             .map_external_status(bs_resp.status.as_str())
             .await
@@ -91,7 +94,8 @@ impl TrackingService {
             updated_at: current_time,
         };
 
-        self.shipment_repository
+        self.repos
+            .shipment_repository
             .save(shipment.clone())
             .await
             .map_err(|e| match e {
@@ -99,11 +103,9 @@ impl TrackingService {
                 None => HttpError::InternalServerError(anyhow::anyhow!("error from db")),
             })?;
 
-        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let subs = ShipmentSubscription {
             id: Uuid::new_v4(),
-            // this is a dummy user for the development phase
-            user_id: user_uuid,
+            user_id,
             shipment_id: shipment.id,
             subscribed_statues: vec![
                 ShipmentStatus::InTransit,
@@ -116,7 +118,8 @@ impl TrackingService {
             updated_at: current_time,
         };
 
-        self.shipment_subs_repo
+        self.repos
+            .shipment_subs_repo
             .save(subs)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
@@ -128,23 +131,27 @@ impl TrackingService {
             attempt: 0,
         };
 
-        self.tracking_job_repo
+        self.repos
+            .tracking_job_repo
             .save(&job)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
         for ch in req.notify_on.iter() {
+            if !user_with_notif_pref.default_channels.contains(ch) {
+                continue;
+            }
+
             let recipient = match ch {
-                NotificationChannel::Whatsapp => "6285158824017",
-                NotificationChannel::Email => "akmalmp241@gmail.com",
-                NotificationChannel::Push => "",
+                NotificationChannel::Whatsapp => user_with_notif_pref.phone_number.clone(),
+                NotificationChannel::Email => user_with_notif_pref.email.clone(),
             };
 
             let payload = TrackingEventMsg {
                 message_id: Uuid::new_v4(),
                 event_type: TrackingEventMsgType::TrackingAdded,
                 channel: ch.clone(),
-                user_id: user_uuid,
+                user_id,
                 recipient: recipient.to_string(),
                 template_code: "TRACKING_STATUS".to_string(),
                 payload: TrackingMsgPayload {
@@ -186,31 +193,32 @@ impl TrackingService {
         Ok(response)
     }
 
-    pub async fn get_shipments(&self) -> Result<GetShipmentsResponse, HttpError> {
-        // this is a dummy user for the development phase
-        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-
+    pub async fn get_shipments(&self, user_id: Uuid) -> Result<GetShipmentsResponse, HttpError> {
         let res = self
+            .repos
             .shipment_repository
-            .get_all(user_uuid)
+            .get_all(user_id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
         Ok(res)
     }
 
-    pub async fn get_shipment_by_id(&self, id: Uuid) -> Result<GetShipmentResponse, HttpError> {
-        // this is a dummy user for the development phase
-        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-
+    pub async fn get_shipment_by_id(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+    ) -> Result<GetShipmentResponse, HttpError> {
         let shipment = self
+            .repos
             .shipment_repository
-            .get_by_id(user_uuid, id)
+            .get_by_id(user_id, id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
             .ok_or_else(|| HttpError::NotFound("shipment not found".into()))?;
 
         let events_res = self
+            .repos
             .tracking_event_repo
             .get_by_shipment_id(shipment.id)
             .await
@@ -233,18 +241,17 @@ impl TrackingService {
         Ok(res)
     }
 
-    pub async fn delete_shipment_by_id(&self, id: Uuid) -> Result<(), HttpError> {
-        // this is a dummy user for the development phase
-        let user_uuid = Uuid::from_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-
-        self.shipment_subs_repo
-            .delete_by_shipment_id(user_uuid, id)
+    pub async fn delete_shipment_by_id(&self, id: Uuid, user_id: Uuid) -> Result<(), HttpError> {
+        self.repos
+            .shipment_subs_repo
+            .delete_by_shipment_id(user_id, id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
         let rows_affected = self
+            .repos
             .shipment_repository
-            .delete_by_id(user_uuid, id)
+            .delete_by_id(user_id, id)
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
@@ -257,6 +264,7 @@ impl TrackingService {
 
     pub async fn get_shipment_events(&self, id: Uuid) -> Result<Vec<TrackingEventRes>, HttpError> {
         let res = self
+            .repos
             .tracking_event_repo
             .get_by_shipment_id(id)
             .await
@@ -272,5 +280,17 @@ impl TrackingService {
         });
 
         Ok(events)
+    }
+
+    async fn get_user(&self, user_id: &Uuid) -> Result<UserWithNotifPref, HttpError> {
+        let res = self
+            .repos
+            .user_repo
+            .get_by_id(user_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::Unauthorized("User unauthorized".to_string()))?;
+
+        Ok(res)
     }
 }
