@@ -124,6 +124,13 @@ impl BiteshipService {
             ShipmentServiceError::Unexpected(e.into())
         })?;
 
+        if !shipment_subs
+            .subscribed_statuses
+            .contains(&status_mapped.normalized_status)
+        {
+            return Ok(());
+        }
+
         for ch in shipment_subs.subscribed_channels.iter() {
             if !user.default_channels.contains(ch) {
                 continue;

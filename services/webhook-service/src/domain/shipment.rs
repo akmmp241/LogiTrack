@@ -11,7 +11,7 @@ pub enum ShipmentSource {
     External,
 }
 
-#[derive(Type, Debug, Clone, Serialize, Deserialize)]
+#[derive(Type, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[sqlx(type_name = "shipment_status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ShipmentStatus {
     Created,
@@ -36,7 +36,6 @@ pub struct Shipment {
     pub id: Uuid,
     pub waybill_id: String,
     pub courier_code: String,
-    pub source: ShipmentSource,
     pub order_id: Option<Uuid>,
     #[sqlx(rename = "external_order_ref")]
     pub external_ref_id: Option<String>,
@@ -80,7 +79,7 @@ pub struct ShipmentSubscription {
     pub id: Uuid,
     pub user_id: Uuid,
     pub shipment_id: Uuid,
-    pub subscribed_statues: Vec<ShipmentStatus>,
+    pub subscribed_statuses: Vec<ShipmentStatus>,
     pub subscribed_channels: Vec<NotificationChannel>,
     pub label: String,
     pub created_at: DateTime<Utc>,
