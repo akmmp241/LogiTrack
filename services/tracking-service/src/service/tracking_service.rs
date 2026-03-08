@@ -72,11 +72,6 @@ impl TrackingService {
             .fetch_public_tracking(req.awb.clone(), req.courier_code.clone())
             .await?;
 
-        let external = match req.is_internal {
-            true => ShipmentSource::Internal,
-            false => ShipmentSource::External,
-        };
-
         let current_time = Utc::now();
 
         let status = self
@@ -90,7 +85,6 @@ impl TrackingService {
             id: Uuid::new_v4(),
             waybill_id: req.awb.clone(),
             courier_code: req.courier_code.clone(),
-            source: external,
             order_id: None,
             external_ref_id: None,
             current_status: status,

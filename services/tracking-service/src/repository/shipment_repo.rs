@@ -16,14 +16,12 @@ impl ShipmentRepository {
     pub async fn save(&self, shipment: Shipment) -> Result<(), Option<TrackingError>> {
         let res = sqlx::query(
             "INSERT INTO  shipments
-                (id, waybill_id, courier_code,
-                 source, current_status, order_id,
-                 external_order_ref, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+                (id, waybill_id, courier_code, current_status, order_id,
+                 external_order_ref, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
         )
             .bind(shipment.id)
             .bind(shipment.waybill_id)
             .bind(shipment.courier_code)
-            .bind(shipment.source)
             .bind(shipment.current_status)
             .bind(shipment.order_id)
             .bind(shipment.external_ref_id)
@@ -43,8 +41,7 @@ impl ShipmentRepository {
 
     pub async fn get_all(&self, user_id: Uuid) -> Result<Vec<Shipment>, sqlx::Error> {
         let res: Vec<Shipment> = sqlx::query_as(
-            "SELECT id, waybill_id, courier_code,
-                    source, current_status, order_id,
+            "SELECT id, waybill_id, courier_code, current_status, order_id,
                     external_order_ref, created_at, updated_at FROM shipments WHERE user_id = $1",
         )
         .bind(user_id)
@@ -60,8 +57,7 @@ impl ShipmentRepository {
         id: Uuid,
     ) -> Result<Option<Shipment>, sqlx::Error> {
         let res: Option<Shipment> = sqlx::query_as(
-            "SELECT id, waybill_id, courier_code,
-                    source, current_status, order_id,
+            "SELECT id, waybill_id, courier_code, current_status, order_id,
                     external_order_ref, created_at, updated_at FROM shipments
                     WHERE user_id = $1 AND id = $2",
         )

@@ -56,7 +56,6 @@ pub struct Shipment {
     pub id: Uuid,
     pub waybill_id: String,
     pub courier_code: String,
-    pub source: ShipmentSource,
     pub order_id: Option<Uuid>,
     #[sqlx(rename = "external_order_ref")]
     #[serde(rename = "external_order_ref")]

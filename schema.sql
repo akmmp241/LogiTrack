@@ -205,3 +205,7 @@ CREATE TABLE IF NOT EXISTS api_keys
 
 ALTER TABLE api_keys
     ADD COLUMN scopes VARCHAR(20)[] NOT NULL DEFAULT '{shipment.read, shipment.create}';
+
+ALTER TABLE shipments
+    DROP COLUMN source;
+DROP TYPE shipment_source;
