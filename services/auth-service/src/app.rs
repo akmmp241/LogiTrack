@@ -18,6 +18,8 @@ pub struct App {
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service: AuthService,
+    pub encoding_key: EncodingKey,
+    pub decoding_key: DecodingKey,
     pub notif_pref_service: UserNotificationPreferencesService,
 }
 
@@ -54,8 +56,6 @@ impl App {
             user_repo,
             api_key_repo,
             notif_pref_repo.clone(),
-            encoding_key,
-            decoding_key,
             jwt_expiration,
         );
         let notif_pref_service = UserNotificationPreferencesService::new(notif_pref_repo);
@@ -63,6 +63,8 @@ impl App {
         let state = Arc::new(AppState {
             auth_service,
             notif_pref_service,
+            encoding_key,
+            decoding_key,
         });
 
         Self { state }

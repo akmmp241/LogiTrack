@@ -1310,6 +1310,7 @@ name = "gateway-service"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "config",
  "dotenvy",
  "http-body-util",
@@ -3956,6 +3957,7 @@ dependencies = [
  "config",
  "dotenvy",
  "errors",
+ "jsonwebtoken",
  "lapin",
  "observability",
  "serde",

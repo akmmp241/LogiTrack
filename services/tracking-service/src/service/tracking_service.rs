@@ -130,7 +130,6 @@ impl TrackingService {
             shipment_id: shipment.id,
             next_run_at: Utc::now() + Duration::hours(6),
             interval_minutes: Duration::hours(6).num_minutes(),
-            attempt: 0,
         };
 
         self.repos

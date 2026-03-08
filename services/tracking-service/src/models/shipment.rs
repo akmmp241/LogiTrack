@@ -80,5 +80,4 @@ pub struct TrackingJob {
     pub shipment_id: Uuid,
     pub next_run_at: DateTime<Utc>,
     pub interval_minutes: i64,
-    pub attempt: i8,
 }

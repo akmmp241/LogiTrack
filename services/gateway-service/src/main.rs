@@ -9,8 +9,8 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    observability::init("gateway-service");
     dotenvy::dotenv().ok();
+    observability::init("gateway-service");
 
     let service_urls = ServiceUrls::from_env();
     let state = AppState::new();
