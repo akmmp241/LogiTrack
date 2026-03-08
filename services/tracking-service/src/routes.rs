@@ -5,7 +5,9 @@ use crate::handlers::notification_log::{
 use crate::handlers::tracking::{
     create_shipments, delete_shipment_by_id, get_shipment_by_id, get_shipment_events, get_shipments,
 };
+use crate::middlewares::{auth_middleware, require_scopes};
 use axum::Router;
+use axum::middleware::from_fn_with_state;
 use axum::routing::{delete, get, post};
 use std::sync::Arc;
 
@@ -24,5 +26,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/shipments/{id}/notifications/{notification_id}",
             get(get_shipment_notification_log_by_id),
         )
+        .layer(from_fn_with_state(
+            vec!["shipment.manage".into()],
+            require_scopes,
+        ))
+        .layer(from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

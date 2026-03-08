@@ -17,18 +17,20 @@ impl ApiKeyRepository {
         user_id: Uuid,
         name: &str,
         hashed_key: &str,
+        scopes: Vec<String>,
     ) -> Result<ApiKey, sqlx::Error> {
         let key = sqlx::query_as::<_, ApiKey>(
             r#"
-            INSERT INTO api_keys (id, user_id, name, hashed_key)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, user_id, name, hashed_key, active, created_at
+            INSERT INTO api_keys (id, user_id, name, hashed_key, scopes)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, user_id, name, hashed_key, active, scopes, created_at
             "#,
         )
         .bind(Uuid::new_v4())
         .bind(user_id)
         .bind(name)
         .bind(hashed_key)
+        .bind(scopes)
         .fetch_one(&self.pool)
         .await?;
 
@@ -38,7 +40,7 @@ impl ApiKeyRepository {
     pub async fn list_by_user(&self, user_id: Uuid) -> Result<Vec<ApiKey>, sqlx::Error> {
         let keys = sqlx::query_as::<_, ApiKey>(
             r#"
-            SELECT id, user_id, name, hashed_key, active, created_at
+            SELECT id, user_id, name, hashed_key, active, scopes, created_at
             FROM api_keys
             WHERE user_id = $1
             ORDER BY created_at DESC
@@ -57,7 +59,7 @@ impl ApiKeyRepository {
     ) -> Result<Option<ApiKey>, sqlx::Error> {
         let key = sqlx::query_as::<_, ApiKey>(
             r#"
-            SELECT id, user_id, name, hashed_key, active, created_at
+            SELECT id, user_id, name, hashed_key, scopes, active, created_at
             FROM api_keys
             WHERE hashed_key = $1 AND active = true
             "#,

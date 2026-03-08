@@ -4,7 +4,8 @@ use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
-use jsonwebtoken::{Algorithm, Validation};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{Algorithm, Header, Validation};
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -15,11 +16,24 @@ struct Claims {
     exp: usize,
     iat: usize,
     jti: String,
+    // scopes
+    scp: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+struct InternalClaims {
+    sub: String,
+    user_id: String,
+    exp: usize,
+    iat: usize,
+    scp: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct ValidateApiKeyResponse {
     valid: bool,
+    user_id: Option<String>,
+    scopes: Option<Vec<String>>,
     client_id: Option<String>,
 }
 
@@ -36,11 +50,18 @@ pub async fn auth_middleware(
             let token = &auth_str[7..];
 
             return match validate_jwt(token, &state) {
-                Ok(user_id) => {
+                Ok(claims) => {
+                    let user_id = claims.sub;
+                    let scopes = claims.scp;
+
+                    let internal_claims = generate_internal_claims("user", &user_id, scopes);
+
+                    let jwt = generate_internal_jwt(&internal_claims, &state)
+                        .map_err(|e| internal_error(&e))?;
+
                     req.headers_mut()
-                        .insert("x-identity-type", "user".parse().unwrap());
-                    req.headers_mut()
-                        .insert("x-user-id", user_id.parse().unwrap());
+                        .insert("Authorization", format!("Bearer {}", jwt).parse().unwrap());
+
                     Ok(next.run(req).await)
                 }
                 Err(e) => Err(unauthorized_response(&e)),
@@ -55,11 +76,23 @@ pub async fn auth_middleware(
             .to_string();
 
         return match validate_api_key(&api_key, &state).await {
-            Ok(client_id) => {
+            Ok(key) => {
+                let user_id = key
+                    .user_id
+                    .ok_or_else(|| unauthorized_response("Missing user_id"))?;
+
+                let scopes = key
+                    .scopes
+                    .ok_or_else(|| unauthorized_response("Missing scopes"))?;
+
+                let internal_claims = generate_internal_claims("machine", &user_id, scopes);
+
+                let jwt = generate_internal_jwt(&internal_claims, &state)
+                    .map_err(|e| internal_error(&e))?;
+
                 req.headers_mut()
-                    .insert("x-identity-type", "machine".parse().unwrap());
-                req.headers_mut()
-                    .insert("x-client-id", client_id.parse().unwrap());
+                    .insert("Authorization", format!("Bearer {}", jwt).parse().unwrap());
+
                 Ok(next.run(req).await)
             }
             Err(e) => Err(unauthorized_response(&e)),
@@ -71,18 +104,20 @@ pub async fn auth_middleware(
     ))
 }
 
-fn validate_jwt(token: &str, state: &AppState) -> Result<String, String> {
+fn validate_jwt(token: &str, state: &AppState) -> Result<Claims, String> {
     let mut validation = Validation::new(Algorithm::RS256);
     validation.validate_exp = true;
-    validation.set_required_spec_claims(&["sub", "exp", "iat"]);
 
     let token_data = jsonwebtoken::decode::<Claims>(token, &state.jwt_decoding_key, &validation)
         .map_err(|e| format!("Invalid JWT: {}", e))?;
 
-    Ok(token_data.claims.sub)
+    Ok(token_data.claims)
 }
 
-async fn validate_api_key(api_key: &str, state: &AppState) -> Result<String, String> {
+async fn validate_api_key(
+    api_key: &str,
+    state: &AppState,
+) -> Result<ValidateApiKeyResponse, String> {
     let cache_key = format!("apikey:{}", &api_key[..8.min(api_key.len())]);
 
     // check Redis cache first
@@ -92,7 +127,11 @@ async fn validate_api_key(api_key: &str, state: &AppState) -> Result<String, Str
         if cached == "invalid" {
             return Err("Invalid API key".to_string());
         }
-        return Ok(cached);
+
+        let api_key = serde_json::from_str::<ValidateApiKeyResponse>(&cached)
+            .map_err(|e| format!("Failed to parse API key: {}", e))?;
+
+        return Ok(api_key);
     }
 
     // call to auth service
@@ -106,7 +145,7 @@ async fn validate_api_key(api_key: &str, state: &AppState) -> Result<String, Str
         .map_err(|e| format!("Auth service error: {}", e))?;
 
     if !response.status().is_success() {
-        return Err("Auth service validation failed".to_string());
+        return Err("Invalid api key".to_string());
     }
 
     let body: ValidateApiKeyResponse = response
@@ -126,18 +165,19 @@ async fn validate_api_key(api_key: &str, state: &AppState) -> Result<String, Str
         return Err("Invalid API key".to_string());
     }
 
-    let client_id = body.client_id.unwrap_or_default();
+    let api_key_info =
+        serde_json::to_string(&body).map_err(|e| format!("Invalid API key: {}", e))?;
 
     if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
         let _: Result<(), _> = redis::cmd("SETEX")
             .arg(&cache_key)
             .arg(300)
-            .arg(&client_id)
+            .arg(&api_key_info)
             .query_async(&mut conn)
             .await;
     }
 
-    Ok(client_id)
+    Ok(body)
 }
 
 fn unauthorized_response(message: &str) -> Response {
@@ -147,4 +187,32 @@ fn unauthorized_response(message: &str) -> Response {
         .header("content-type", "application/json")
         .body(Body::from(body))
         .unwrap()
+}
+
+fn internal_error(message: &str) -> Response {
+    tracing::error!("{}", message);
+    let body = serde_json::to_string(&json!({"error": "Something went wrong"})).unwrap_or_default();
+    Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap()
+}
+
+fn generate_internal_jwt(claims: &InternalClaims, state: &AppState) -> Result<String, String> {
+    let header = Header::new(Algorithm::RS256);
+    let token = jsonwebtoken::encode(&header, claims, &state.jwt_encoding_key)
+        .map_err(|e| format!("Failed to generate JWT: {}", e))?;
+
+    Ok(token)
+}
+
+fn generate_internal_claims(sub: &str, user_id: &str, scp: Vec<String>) -> InternalClaims {
+    InternalClaims {
+        sub: sub.to_string(),
+        user_id: user_id.to_string(),
+        scp,
+        exp: (Utc::now() + Duration::minutes(5)).timestamp() as usize,
+        iat: Utc::now().timestamp() as usize,
+    }
 }

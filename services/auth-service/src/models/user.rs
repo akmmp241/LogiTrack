@@ -36,4 +36,5 @@ pub struct Claims {
     pub exp: usize,
     pub iat: usize,
     pub jti: String,
+    pub scp: Vec<String>,
 }

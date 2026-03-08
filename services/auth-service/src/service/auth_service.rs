@@ -9,17 +9,28 @@ use argon2::password_hash::SaltString;
 use argon2::password_hash::rand_core::OsRng;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use errors::error::HttpError;
-use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use sha2::{Digest, Sha256};
+use std::convert::Into;
+use std::sync::LazyLock;
 use uuid::Uuid;
+
+pub static USER_SCOPES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    vec![
+        "api-key.manage".into(),
+        "notif-pref.manage".into(),
+        "shipment.manage".into(),
+    ]
+});
+
+pub static APIKEY_SCOPES: LazyLock<Vec<String>> =
+    LazyLock::new(|| vec!["tracking.manage".into(), "shipment.manage".into()]);
 
 #[derive(Clone)]
 pub struct AuthService {
     user_repo: UserRepository,
     api_key_repo: ApiKeyRepository,
     notif_pref_repo: UserNotifPreferenceRepository,
-    encoding_key: EncodingKey,
-    decoding_key: DecodingKey,
     jwt_expiration: u64,
 }
 
@@ -28,16 +39,12 @@ impl AuthService {
         user_repo: UserRepository,
         api_key_repo: ApiKeyRepository,
         notif_pref_repo: UserNotifPreferenceRepository,
-        encoding_key: EncodingKey,
-        decoding_key: DecodingKey,
         jwt_expiration: u64,
     ) -> Self {
         Self {
             user_repo,
             api_key_repo,
             notif_pref_repo,
-            encoding_key,
-            decoding_key,
             jwt_expiration,
         }
     }
@@ -89,7 +96,11 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn login(&self, req: LoginRequest) -> Result<LoginResponse, HttpError> {
+    pub async fn login(
+        &self,
+        req: LoginRequest,
+        encoding_key: &EncodingKey,
+    ) -> Result<LoginResponse, HttpError> {
         let user = self
             .user_repo
             .find_by_email(&req.email)
@@ -111,10 +122,11 @@ impl AuthService {
             exp: now + self.jwt_expiration as usize,
             iat: now,
             jti: Uuid::new_v4().to_string(),
+            scp: USER_SCOPES.to_vec(),
         };
 
         let header = Header::new(Algorithm::RS256);
-        let token = jsonwebtoken::encode(&header, &claims, &self.encoding_key).map_err(|e| {
+        let token = jsonwebtoken::encode(&header, &claims, encoding_key).map_err(|e| {
             HttpError::InternalServerError(anyhow::anyhow!("JWT encode error: {}", e))
         })?;
 
@@ -135,7 +147,7 @@ impl AuthService {
 
         let api_key = self
             .api_key_repo
-            .create(user_id, &req.name, &hashed)
+            .create(user_id, &req.name, &hashed, APIKEY_SCOPES.clone())
             .await
             .map_err(|e| HttpError::InternalServerError(e.into()))?;
 
@@ -192,10 +204,14 @@ impl AuthService {
         match result {
             Some(key) => Ok(ValidateApiKeyResponse {
                 valid: true,
+                user_id: Some(key.user_id),
+                scopes: Some(key.scopes),
                 client_id: Some(key.id),
             }),
             None => Ok(ValidateApiKeyResponse {
                 valid: false,
+                user_id: None,
+                scopes: None,
                 client_id: None,
             }),
         }
