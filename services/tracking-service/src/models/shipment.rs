@@ -70,7 +70,7 @@ pub struct ShipmentSubscription {
     pub id: Uuid,
     pub user_id: Uuid,
     pub shipment_id: Uuid,
-    pub subscribed_statues: Vec<ShipmentStatus>,
+    pub subscribed_statuses: Vec<ShipmentStatus>,
     pub subscribed_channels: Vec<NotificationChannel>,
     pub label: String,
     pub created_at: DateTime<Utc>,

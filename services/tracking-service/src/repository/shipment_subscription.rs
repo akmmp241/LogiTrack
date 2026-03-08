@@ -23,7 +23,7 @@ impl ShipmentSubsRepository {
         )
         .bind(shipment_subs.user_id)
         .bind(shipment_subs.shipment_id)
-        .bind(shipment_subs.subscribed_statues)
+        .bind(shipment_subs.subscribed_statuses)
         .bind(shipment_subs.label)
         .bind(shipment_subs.created_at)
         .bind(shipment_subs.updated_at)

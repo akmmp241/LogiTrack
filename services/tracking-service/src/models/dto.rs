@@ -10,7 +10,8 @@ pub struct AddTrackingRequest {
     pub awb: String,
     pub courier_code: String,
     pub label: String,
-    pub notify_on: Vec<NotificationChannel>,
+    pub subscribed_channels: Vec<NotificationChannel>,
+    pub subscribed_statuses: Vec<ShipmentStatus>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

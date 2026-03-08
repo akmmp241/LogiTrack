@@ -105,13 +105,8 @@ impl TrackingService {
             id: Uuid::new_v4(),
             user_id,
             shipment_id: shipment.id,
-            subscribed_channels: req.notify_on.clone(),
-            subscribed_statues: vec![
-                ShipmentStatus::InTransit,
-                ShipmentStatus::OutForDelivery,
-                ShipmentStatus::Delivered,
-                ShipmentStatus::Delivered,
-            ],
+            subscribed_channels: req.subscribed_channels.clone(),
+            subscribed_statuses: req.subscribed_statuses.clone(),
             label: req.label.clone(),
             created_at: current_time,
             updated_at: current_time,
@@ -135,7 +130,7 @@ impl TrackingService {
             .await
             .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
 
-        for ch in req.notify_on.iter() {
+        for ch in req.subscribed_channels.iter() {
             if !user_with_notif_pref.default_channels.contains(ch) {
                 continue;
             }
@@ -345,7 +340,7 @@ impl TrackingService {
 
         Ok(GetShipmentPreferencesResponse {
             subscribed_channels: res.subscribed_channels,
-            subscribed_statues: res.subscribed_statues,
+            subscribed_statues: res.subscribed_statuses,
         })
     }
 
