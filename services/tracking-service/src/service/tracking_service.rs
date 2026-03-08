@@ -1,10 +1,11 @@
 use crate::models::dto::{
-    AddTrackingRequest, AddTrackingResponse, GetShipmentResponse, GetShipmentsResponse,
-    TrackingEventRes,
+    AddTrackingRequest, AddTrackingResponse, GetShipmentPreferencesResponse, GetShipmentResponse,
+    GetShipmentsResponse, TrackingEventRes, UpdateShipmentPreferencesReq,
 };
 use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
+use crate::models::notification_log;
 use crate::models::shipment::{
     Shipment, ShipmentSource, ShipmentStatus, ShipmentStatusParse, ShipmentSubscription,
     TrackingJob,
@@ -23,6 +24,7 @@ use chrono::{Duration, Utc};
 use errors::error::HttpError;
 use lapin::BasicProperties;
 use lapin::options::BasicPublishOptions;
+use notification_log::NotificationLog;
 use uuid::Uuid;
 
 static EXCHANGE_NAME: &str = "notification.events";
@@ -109,6 +111,7 @@ impl TrackingService {
             id: Uuid::new_v4(),
             user_id,
             shipment_id: shipment.id,
+            subscribed_channels: req.notify_on.clone(),
             subscribed_statues: vec![
                 ShipmentStatus::InTransit,
                 ShipmentStatus::OutForDelivery,
@@ -287,7 +290,7 @@ impl TrackingService {
         &self,
         shipment_id: Uuid,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::notification_log::NotificationLog>, HttpError> {
+    ) -> Result<Vec<NotificationLog>, HttpError> {
         self.repos
             .shipment_repository
             .get_by_id(user_id, shipment_id)
@@ -310,7 +313,7 @@ impl TrackingService {
         notification_id: Uuid,
         shipment_id: Uuid,
         user_id: Uuid,
-    ) -> Result<crate::models::notification_log::NotificationLog, HttpError> {
+    ) -> Result<NotificationLog, HttpError> {
         self.repos
             .shipment_repository
             .get_by_id(user_id, shipment_id)
@@ -331,6 +334,50 @@ impl TrackingService {
         }
 
         Ok(log)
+    }
+
+    pub async fn get_shipment_preferences(
+        &self,
+        user_id: Uuid,
+        shipment_id: Uuid,
+    ) -> Result<GetShipmentPreferencesResponse, HttpError> {
+        let res = self
+            .repos
+            .shipment_subs_repo
+            .find_by_shipment_id(&user_id, &shipment_id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?
+            .ok_or_else(|| HttpError::NotFound("shipment not found".into()))?;
+
+        Ok(GetShipmentPreferencesResponse {
+            subscribed_channels: res.subscribed_channels,
+            subscribed_statues: res.subscribed_statues,
+        })
+    }
+
+    pub async fn update_shipment_preferences(
+        &self,
+        user_id: Uuid,
+        shipment_id: Uuid,
+        req: UpdateShipmentPreferencesReq,
+    ) -> Result<(), HttpError> {
+        let result = self
+            .repos
+            .shipment_subs_repo
+            .update_by_shipment_id(
+                &user_id,
+                &shipment_id,
+                &req.subscribed_statues,
+                &req.subscribed_channels,
+            )
+            .await
+            .map_err(|e| HttpError::InternalServerError(anyhow::anyhow!(e.to_string())))?;
+
+        if !result {
+            return Err(HttpError::NotFound("shipment not found".into()));
+        }
+
+        Ok(())
     }
 
     async fn get_user(&self, user_id: &Uuid) -> Result<UserWithNotifPref, HttpError> {

@@ -1,5 +1,5 @@
 use crate::models::notification::NotificationChannel;
-use crate::models::shipment::Shipment;
+use crate::models::shipment::{Shipment, ShipmentStatus};
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
@@ -40,4 +40,16 @@ pub struct TrackingEventRes {
     pub normalized_status: String,
     pub description: String,
     pub occurred_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetShipmentPreferencesResponse {
+    pub subscribed_channels: Vec<NotificationChannel>,
+    pub subscribed_statues: Vec<ShipmentStatus>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdateShipmentPreferencesReq {
+    pub subscribed_channels: Vec<NotificationChannel>,
+    pub subscribed_statues: Vec<ShipmentStatus>,
 }

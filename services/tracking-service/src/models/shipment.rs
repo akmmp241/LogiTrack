@@ -1,3 +1,4 @@
+use crate::models::notification::NotificationChannel;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -71,6 +72,7 @@ pub struct ShipmentSubscription {
     pub user_id: Uuid,
     pub shipment_id: Uuid,
     pub subscribed_statues: Vec<ShipmentStatus>,
+    pub subscribed_channels: Vec<NotificationChannel>,
     pub label: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

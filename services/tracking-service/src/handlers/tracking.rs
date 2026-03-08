@@ -1,12 +1,13 @@
 use crate::app::AppState;
 use crate::middlewares::CurrentUser;
-use crate::models::dto::AddTrackingRequest;
+use crate::models::dto::{AddTrackingRequest, UpdateShipmentPreferencesReq};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use errors::error::HttpError;
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -72,4 +73,41 @@ pub async fn get_shipment_events(
     let res = handler.service.get_shipment_events(id).await?;
 
     Ok((StatusCode::OK, Json(res)))
+}
+
+pub async fn get_shipment_pref(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Extension(user): Extension<CurrentUser>,
+) -> Result<impl IntoResponse, HttpError> {
+    let id = id
+        .parse()
+        .map_err(|_| HttpError::BadRequest("invalid uuid".into()))?;
+
+    let res = state.service.get_shipment_preferences(user.id, id).await?;
+
+    Ok((StatusCode::OK, Json(res)))
+}
+
+pub async fn update_shipment_pref(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Extension(user): Extension<CurrentUser>,
+    req: Result<Json<UpdateShipmentPreferencesReq>, JsonRejection>,
+) -> Result<impl IntoResponse, HttpError> {
+    let Json(data) = req?;
+
+    let id = id
+        .parse()
+        .map_err(|_| HttpError::BadRequest("invalid uuid".into()))?;
+
+    let _res = state
+        .service
+        .update_shipment_preferences(user.id, id, data)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({"message": "Update preferences successfully"})),
+    ))
 }
