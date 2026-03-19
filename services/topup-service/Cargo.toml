@@ -1,0 +1,23 @@
+[package]
+name = "topup-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+jsonwebtoken = { workspace = true }
+redis = { workspace = true }
+deadpool-redis.workspace = true
+anyhow.workspace = true
+observability = { path = "../../libs/observability" }
+config = { path = "../../libs/config" }
+errors = { path = "../../libs/errors", features = ["http-integrations"] }
+payment = { path = "../../libs/use_case/payment" }
