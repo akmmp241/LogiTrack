@@ -5,6 +5,7 @@ use crate::models::user::{Claims, LoginRequest, LoginResponse, RegisterRequest};
 use crate::repository::api_key_repo::ApiKeyRepository;
 use crate::repository::user_notif_preference_repo::UserNotifPreferenceRepository;
 use crate::repository::user_repo::UserRepository;
+use crate::repository::wallet_repo::WalletRepository;
 use argon2::password_hash::SaltString;
 use argon2::password_hash::rand_core::OsRng;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
@@ -20,6 +21,7 @@ pub static USER_SCOPES: LazyLock<Vec<String>> = LazyLock::new(|| {
         "api-key.manage".into(),
         "notif-pref.manage".into(),
         "shipment.manage".into(),
+        "billing.manage".into(),
     ]
 });
 
@@ -31,6 +33,7 @@ pub struct AuthService {
     user_repo: UserRepository,
     api_key_repo: ApiKeyRepository,
     notif_pref_repo: UserNotifPreferenceRepository,
+    wallet_repository: WalletRepository,
     jwt_expiration: u64,
 }
 
@@ -39,12 +42,14 @@ impl AuthService {
         user_repo: UserRepository,
         api_key_repo: ApiKeyRepository,
         notif_pref_repo: UserNotifPreferenceRepository,
+        wallet_repository: WalletRepository,
         jwt_expiration: u64,
     ) -> Self {
         Self {
             user_repo,
             api_key_repo,
             notif_pref_repo,
+            wallet_repository,
             jwt_expiration,
         }
     }
@@ -91,6 +96,15 @@ impl AuthService {
                 "Notification Preferences not created for user id {}",
                 user.id
             );
+        }
+
+        if !self
+            .wallet_repository
+            .save(&user.id)
+            .await
+            .map_err(|e| HttpError::InternalServerError(e.into()))?
+        {
+            tracing::warn!("Failed to create wallet for user {}", user.id);
         }
 
         Ok(())
