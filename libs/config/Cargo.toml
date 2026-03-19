@@ -10,3 +10,4 @@ reqwest.workspace = true
 lapin.workspace = true
 lettre.workspace = true
 redis.workspace = true
+deadpool-redis.workspace = true
