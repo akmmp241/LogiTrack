@@ -1,6 +1,7 @@
 use crate::repository::api_key_repo::ApiKeyRepository;
 use crate::repository::user_notif_preference_repo::UserNotifPreferenceRepository;
 use crate::repository::user_repo::UserRepository;
+use crate::repository::wallet_repo::WalletRepository;
 use crate::routes::routes;
 use crate::service::auth_service::AuthService;
 use crate::service::user_notif_preferences_service::UserNotificationPreferencesService;
@@ -51,11 +52,13 @@ impl App {
         let user_repo = UserRepository::new(db.clone());
         let api_key_repo = ApiKeyRepository::new(db.clone());
         let notif_pref_repo = UserNotifPreferenceRepository::new(db.clone());
+        let wallet_repo = WalletRepository::new(db.clone());
 
         let auth_service = AuthService::new(
             user_repo,
             api_key_repo,
             notif_pref_repo.clone(),
+            wallet_repo,
             jwt_expiration,
         );
         let notif_pref_service = UserNotificationPreferencesService::new(notif_pref_repo);
