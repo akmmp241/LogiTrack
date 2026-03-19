@@ -148,28 +148,32 @@ VALUES ('biteship', 'confirmed', 'CREATED'),
        ('biteship', 'disposed', 'FAILED'),
        ('biteship', 'cancelled', 'CANCELLED');
 
-ALTER TABLE status_mappings RENAME COLUMN courier_code TO platform;
+ALTER TABLE status_mappings
+    RENAME COLUMN courier_code TO platform;
 
 ALTER TABLE shipments
     ADD COLUMN user_id UUID REFERENCES users (id);
 
 -- Dummy user data
 INSERT INTO users (id, name, phone_number, email, created_at)
-VALUES
-    ('550e8400-e29b-41d4-a716-446655440000', 'John Doe', '+1234567890', 'john.doe@example.com', '2024-01-15 10:30:00+00'),
-    ('550e8400-e29b-41d4-a716-446655440001', 'Jane Smith', '+1234567891', 'jane.smith@example.com', '2024-01-20 14:45:00+00');
+VALUES ('550e8400-e29b-41d4-a716-446655440000', 'John Doe', '+1234567890', 'john.doe@example.com',
+        '2024-01-15 10:30:00+00'),
+       ('550e8400-e29b-41d4-a716-446655440001', 'Jane Smith', '+1234567891', 'jane.smith@example.com',
+        '2024-01-20 14:45:00+00');
 
 -- User notification preferences
 INSERT INTO user_notification_preferences (user_id, default_channels, updated_at)
-VALUES
-    ('550e8400-e29b-41d4-a716-446655440000', '{WHATSAPP,EMAIL}', '2024-01-15 10:30:00+00'),
-    ('550e8400-e29b-41d4-a716-446655440001', '{EMAIL}', '2024-01-20 14:45:00+00');
+VALUES ('550e8400-e29b-41d4-a716-446655440000', '{WHATSAPP,EMAIL}', '2024-01-15 10:30:00+00'),
+       ('550e8400-e29b-41d4-a716-446655440001', '{EMAIL}', '2024-01-20 14:45:00+00');
 
 -- Shipment subscriptions
 INSERT INTO shipment_subscriptions (id, user_id, shipment_id, subscribed_statuses, label, created_at, updated_at)
-VALUES
-    ('850e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000', 'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{OUT_FOR_DELIVERY,DELIVERED,FAILED}', 'Electronics Order', '2024-01-16 09:15:00+00', '2024-01-16 09:15:00+00'),
-    ('850e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{DELIVERED,FAILED, RETURNED}', 'Books Order', '2024-01-22 16:15:00+00', '2024-01-22 16:15:00+00');
+VALUES ('850e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000',
+        'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{OUT_FOR_DELIVERY,DELIVERED,FAILED}', 'Electronics Order',
+        '2024-01-16 09:15:00+00', '2024-01-16 09:15:00+00'),
+       ('850e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001',
+        'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{DELIVERED,FAILED, RETURNED}', 'Books Order', '2024-01-22 16:15:00+00',
+        '2024-01-22 16:15:00+00');
 
 SELECT id,
        waybill_id,
@@ -183,7 +187,8 @@ SELECT id,
 FROM shipments
 WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';
 
-ALTER TABLE tracking_events DROP COLUMN location;
+ALTER TABLE tracking_events
+    DROP COLUMN location;
 
 ALTER TABLE shipment_subscriptions
     ADD COLUMN subscribed_channels notification_channel[] DEFAULT '{EMAIL}';
@@ -209,3 +214,59 @@ ALTER TABLE api_keys
 ALTER TABLE shipments
     DROP COLUMN source;
 DROP TYPE shipment_source;
+
+CREATE TABLE wallets
+(
+    id         UUID PRIMARY KEY     DEFAULT uuid_generate_v4(),
+    user_id    UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    balance    BIGINT      NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TYPE wallet_transaction AS ENUM (
+    'TOPUP', 'AWB_CREATION', 'EMAIL_NOTIFICATION', 'WA_NOTIFICATION', 'REFUND'
+    );
+
+
+CREATE TABLE wallet_transactions
+(
+    id           UUID PRIMARY KEY     DEFAULT uuid_generate_v4(),
+    wallet_id    UUID        NOT NULL REFERENCES wallets (id) ON DELETE CASCADE,
+    type         wallet_transaction,
+    amount       BIGINT      NOT NULL DEFAULT 0,
+    reference_id TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE pricing_tiers
+(
+    id         UUID PRIMARY KEY  DEFAULT uuid_generate_v4(),
+    tier_level SMALLINT NOT NULL DEFAULT 1,
+    min_volume INTEGER  NOT NULL DEFAULT 1,
+    max_volume INTEGER  NULL,
+    price      BIGINT
+);
+
+INSERT INTO pricing_tiers (tier_level, min_volume, max_volume, price)
+VALUES (1, 1, 2500, 250),
+       (2, 2501, 10000, 150),
+       (3, 10001, null, 100);
+
+CREATE TYPE transaction_status AS ENUM (
+    'PENDING', 'PAID', 'EXPIRED', 'FAILED'
+    );
+
+CREATE TABLE transactions
+(
+    id                  UUID PRIMARY KEY   NOT NULL DEFAULT uuid_generate_v4(),
+    user_id             UUID               NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    request_amount      BIGINT             NOT NULL,
+    charge_amount       BIGINT             NOT NULL,
+    total_amount        BIGINT             NOT NULL,
+    status              transaction_status NOT NULL DEFAULT 'PENDING',
+    payment_method      VARCHAR(20)        NOT NULL,
+    external_payment_id VARCHAR(255)       NOT NULL,
+    metadata            JSONB              NULL,
+    paid_at             TIMESTAMPTZ        NULL,
+    created_at          TIMESTAMPTZ        NOT NULL DEFAULT now()
+);
