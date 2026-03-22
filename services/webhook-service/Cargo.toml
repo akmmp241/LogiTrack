@@ -21,3 +21,5 @@ async-trait.workspace = true
 tower-http = { version = "0.6.8", features = ["trace"] }
 lapin.workspace = true
 serde_json.workspace = true
+redis = { workspace = true }
+deadpool-redis.workspace = true

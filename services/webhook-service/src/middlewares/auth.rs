@@ -1,12 +1,12 @@
-use crate::handlers::biteship_handler::BiteshipHandler;
+use crate::handlers::DefaultHandler;
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
 use std::sync::Arc;
 
-pub async fn biteship_auth_middleware(
-    State(handler): State<Arc<BiteshipHandler>>,
+pub async fn auth_from_header<T: DefaultHandler>(
+    State(handler): State<Arc<T>>,
     request: Request,
     next: Next,
 ) -> impl IntoResponse {
