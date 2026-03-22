@@ -1,14 +1,18 @@
 use crate::handlers::biteship_handler::BiteshipHandler;
-use crate::routes::register_biteship_routes;
+use crate::handlers::xendit_handler::XenditHandler;
+use crate::routes::{register_biteship_routes, register_xendit_routes};
 use crate::services::biteship_service::BiteshipService;
+use crate::services::xendit_service::XenditService;
 use axum::Router;
 use config::postgres::get_db_connection;
 use config::rabbitmq::create_channel;
+use config::redis::create_redis_pool;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
 pub struct App {
     biteship_handler: Arc<BiteshipHandler>,
+    xendit_handler: Arc<XenditHandler>,
 }
 
 impl App {
@@ -23,11 +27,18 @@ impl App {
             .await
             .expect("couldn't create rabbitmq channel");
 
-        let biteship_service = Arc::new(BiteshipService::new(db, rabbitmq_channel));
+        let redis_pool = create_redis_pool().await;
 
+        let biteship_service = Arc::new(BiteshipService::new(db.clone(), rabbitmq_channel));
         let biteship_handler = Arc::new(BiteshipHandler::new(biteship_service));
 
-        Self { biteship_handler }
+        let xendit_service = Arc::new(XenditService::new(db, redis_pool));
+        let xendit_handler = Arc::new(XenditHandler::new(xendit_service));
+
+        Self {
+            biteship_handler,
+            xendit_handler,
+        }
     }
 
     pub async fn run(&self) {
@@ -35,13 +46,15 @@ impl App {
         let addr = format!("0.0.0.0:{}", port);
 
         let biteship_router = register_biteship_routes(self.biteship_handler.clone());
+        let xendit_router = register_xendit_routes(self.xendit_handler.clone());
 
         let app = Router::new()
             .route(
                 "/",
                 axum::routing::post(|| async { axum::http::StatusCode::OK }),
             )
-            .nest("/api/webhook", biteship_router);
+            .merge(biteship_router)
+            .merge(xendit_router);
 
         let listener = TcpListener::bind(&addr)
             .await

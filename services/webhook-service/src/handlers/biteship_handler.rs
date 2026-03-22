@@ -1,4 +1,5 @@
 use crate::domain::biteship::BiteshipChangeStatusEvent;
+use crate::handlers::DefaultHandler;
 use crate::services::biteship_service::BiteshipService;
 use Result;
 use axum::Json;
@@ -10,10 +11,21 @@ use errors::error::HttpError;
 use std::env;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct BiteshipHandler {
     webhook_key: String,
     webhook_secret: String,
     service: Arc<BiteshipService>,
+}
+
+impl DefaultHandler for BiteshipHandler {
+    fn get_webhook_key(&self) -> &str {
+        &self.webhook_key
+    }
+
+    fn get_webhook_secret(&self) -> &str {
+        &self.webhook_secret
+    }
 }
 
 impl BiteshipHandler {
@@ -26,14 +38,6 @@ impl BiteshipHandler {
             webhook_secret: secret,
             service,
         }
-    }
-
-    pub fn get_webhook_key(&self) -> &str {
-        &self.webhook_key
-    }
-
-    pub fn get_webhook_secret(&self) -> &str {
-        &self.webhook_secret
     }
 
     pub async fn status_change(

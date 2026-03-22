@@ -3,6 +3,7 @@ use crate::domain::shipment::{Shipment, StatusMapping};
 use sqlx::{Postgres, Transaction};
 
 pub mod biteship_service;
+pub mod xendit_service;
 
 #[async_trait::async_trait]
 pub trait DefaultService {
