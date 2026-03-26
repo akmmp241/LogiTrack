@@ -1,0 +1,19 @@
+[package]
+name = "billing-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio.workspace = true
+lapin.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+sqlx = { workspace = true }
+dotenvy.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+futures-util = "0.3"
+observability = { path = "../../libs/observability" }
+config = { path = "../../libs/config" }
