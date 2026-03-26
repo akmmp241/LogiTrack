@@ -5,9 +5,13 @@ use crate::ports::telegram::TelegramSender;
 use crate::ports::whatsapp::WhatsappSender;
 use config::lettre::create_smtp_transport;
 use config::postgres::get_db_connection;
+use config::rabbitmq::create_channel;
+use config::redis::create_redis_pool;
+use config::reqwest::get_reqwest_pool;
 use std::env;
 use std::sync::Arc;
 
+mod billing;
 mod consumer;
 mod domain;
 mod handler;
@@ -26,15 +30,52 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Failed to create smtp transport");
 
+    let redis_pool = create_redis_pool().await;
+
     let wa_queue = env::var("WA_QUEUE").expect("WA_QUEUE env var not set");
     let tele_queue = env::var("TELE_QUEUE").expect("TELE_QUEUE env var not set");
     let email_queue = env::var("EMAIL_QUEUE").expect("EMAIL_QUEUE env var not set");
 
-    let wa_handler = NotificationHandler::new(Arc::new(WhatsappSender::new()), pool.clone()).await;
-    let tele_handler =
-        NotificationHandler::new(Arc::new(TelegramSender::new()), pool.clone()).await;
-    let email_handler =
-        NotificationHandler::new(Arc::new(EmailSmtpSender::new(mailer)), pool.clone()).await;
+    let wa_rmq_channel = create_channel()
+        .await
+        .expect("Failed to create WA RabbitMQ channel");
+    let tele_rmq_channel = create_channel()
+        .await
+        .expect("Failed to create Tele RabbitMQ channel");
+    let email_rmq_channel = create_channel()
+        .await
+        .expect("Failed to create Email RabbitMQ channel");
+
+    let http_client = get_reqwest_pool().expect("Failed to get HTTP client");
+    let topup_url = env::var("TOPUP_SERVICE_URL").expect("TOPUP_SERVICE_URL env var not set");
+
+    let wa_handler = NotificationHandler::new(
+        Arc::new(WhatsappSender::new()),
+        pool.clone(),
+        redis_pool.clone(),
+        wa_rmq_channel,
+        http_client.clone(),
+        topup_url.clone(),
+    )
+    .await;
+    let tele_handler = NotificationHandler::new(
+        Arc::new(TelegramSender::new()),
+        pool.clone(),
+        redis_pool.clone(),
+        tele_rmq_channel,
+        http_client.clone(),
+        topup_url.clone(),
+    )
+    .await;
+    let email_handler = NotificationHandler::new(
+        Arc::new(EmailSmtpSender::new(mailer)),
+        pool.clone(),
+        redis_pool.clone(),
+        email_rmq_channel,
+        http_client.clone(),
+        topup_url.clone(),
+    )
+    .await;
 
     let mut consumers = Vec::<NotificationConsumer>::new();
     consumers.push(NotificationConsumer::new(wa_handler, wa_queue).await);
