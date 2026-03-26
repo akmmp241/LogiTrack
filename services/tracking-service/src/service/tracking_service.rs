@@ -6,10 +6,7 @@ use crate::models::notification::{
     NotificationChannel, TrackingEventMsg, TrackingEventMsgType, TrackingMsgPayload,
 };
 use crate::models::notification_log;
-use crate::models::shipment::{
-    Shipment, ShipmentSource, ShipmentStatus, ShipmentStatusParse, ShipmentSubscription,
-    TrackingJob,
-};
+use crate::models::shipment::{Shipment, ShipmentStatusParse, ShipmentSubscription, TrackingJob};
 use crate::models::user::UserWithNotifPref;
 use crate::repository::notification_log_repo::NotificationLogRepository;
 use crate::repository::shipment_repo::ShipmentRepository;
@@ -18,6 +15,7 @@ use crate::repository::shipment_subscription::ShipmentSubsRepository;
 use crate::repository::tracking_event_repo::TrackingEventRepo;
 use crate::repository::tracking_job_repo::TrackingJobRepository;
 use crate::repository::user_repo::UserRepository;
+use crate::service::awb_counter;
 use anyhow::anyhow;
 use biteship::BiteshipUseCase;
 use chrono::{Duration, Utc};
@@ -45,6 +43,7 @@ pub struct TrackingService {
     pub repos: Repositories,
     pub biteship_uc: BiteshipUseCase,
     pub rabbitmq_channel: lapin::Channel,
+    pub redis_pool: deadpool_redis::Pool,
 }
 
 impl TrackingService {
@@ -52,11 +51,13 @@ impl TrackingService {
         repos: Repositories,
         biteship_uc: BiteshipUseCase,
         rabbitmq_channel: lapin::Channel,
+        redis_pool: deadpool_redis::Pool,
     ) -> Self {
         Self {
             repos,
             biteship_uc,
             rabbitmq_channel,
+            redis_pool,
         }
     }
 
@@ -83,6 +84,7 @@ impl TrackingService {
 
         let shipment = Shipment {
             id: Uuid::new_v4(),
+            user_id,
             waybill_id: req.awb.clone(),
             courier_code: req.courier_code.clone(),
             order_id: None,
@@ -99,6 +101,13 @@ impl TrackingService {
             .map_err(|e| match e {
                 Some(err) => HttpError::BadRequest(err.to_string()),
                 None => HttpError::InternalServerError(anyhow::anyhow!("error from db")),
+            })?;
+
+        awb_counter::increment_awb_count(&self.redis_pool, &user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to increment AWB count: {}", e);
+                HttpError::InternalServerError(anyhow::anyhow!(e.to_string()))
             })?;
 
         let subs = ShipmentSubscription {
@@ -155,7 +164,7 @@ impl TrackingService {
                 },
             };
 
-            let payload = serde_json::to_vec(&payload).map_err(|e| {
+            let payload = serde_json::to_vec(&payload).map_err(|_e| {
                 HttpError::InternalServerError(anyhow!("failed to serialize msg payload"))
             })?;
 
