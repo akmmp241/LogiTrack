@@ -443,6 +443,21 @@ checksum = "0e050f626429857a27ddccb31e0aca21356bfa709c04041aefddac081a8f068a"
 [[package]]
 name = "billing-service"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "config",
+ "dotenvy",
+ "futures-util",
+ "lapin",
+ "observability",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "biteship"
@@ -2101,13 +2116,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "config",
+ "deadpool-redis",
  "dotenvy",
  "futures-util",
  "handlebars",
  "lapin",
  "lettre",
  "observability",
+ "redis",
  "reqwest",
  "serde",
  "serde_json",
@@ -4026,11 +4044,13 @@ dependencies = [
  "biteship",
  "chrono",
  "config",
+ "deadpool-redis",
  "dotenvy",
  "errors",
  "jsonwebtoken",
  "lapin",
  "observability",
+ "redis",
  "serde",
  "serde_json",
  "sqlx",
