@@ -85,7 +85,8 @@ impl BiteshipService {
                 }
             })?;
 
-        self.log_tracking_event(&mut tx, &shipment, &status_mapped)
+        let id_tracking_event = self
+            .log_tracking_event(&mut tx, &shipment, &status_mapped)
             .await
             .map_err(|e| {
                 tracing::error!("failed to insert tracking event: {}", e);
@@ -142,7 +143,7 @@ impl BiteshipService {
             };
 
             let payload = TrackingEventMsg {
-                message_id: Uuid::new_v4(),
+                message_id: id_tracking_event,
                 event_type: TrackingEventMsgType::TrackingStatusUpdated,
                 channel: ch.clone(),
                 user_id: user.id,
@@ -226,8 +227,8 @@ impl BiteshipService {
     ) -> Result<Option<Shipment>, Error> {
         let res: Option<Shipment> = sqlx::query_as(
             "SELECT id, waybill_id, courier_code,
-                    source, current_status, order_id,
-                    external_order_ref, created_at, updated_at FROM shipments
+                    current_status, order_id,
+                    external_order_ref, current_status, created_at, updated_at FROM shipments
                     WHERE waybill_id = $1",
         )
         .bind(waybill_id)
@@ -243,9 +244,10 @@ impl BiteshipService {
         shipment_id: Uuid,
     ) -> Result<Option<ShipmentSubscription>, Error> {
         let res: Option<ShipmentSubscription> = sqlx::query_as(
-            "SELECT id, user_id, shipment_id, subscribed_statues,
+            "SELECT id, user_id, shipment_id, subscribed_statuses,
                     subscribed_channels, label, created_at, updated_at
-                    WHERE shipment_id = $1",
+                FROM shipment_subscriptions
+                WHERE shipment_id = $1",
         )
         .bind(shipment_id)
         .fetch_optional(&mut **tx)
@@ -282,13 +284,13 @@ impl DefaultService for BiteshipService {
         tx: &mut Transaction<Postgres>,
         shipment: &Shipment,
         status_mapping: &StatusMapping,
-    ) -> Result<(), Error> {
-        let res = sqlx::query(
+    ) -> Result<Uuid, Error> {
+        let res = sqlx::query_scalar::<_, Uuid>(
             "
                 INSERT INTO tracking_events
                     (shipment_id, raw_status, normalized_status,
                      description, occurred_at, source, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         )
         .bind(shipment.id)
         .bind(status_mapping.raw_status.clone())
@@ -297,14 +299,10 @@ impl DefaultService for BiteshipService {
         .bind(Utc::now())
         .bind(TrackingEventSource::Webhook)
         .bind(Utc::now())
-        .execute(&mut **tx)
+        .fetch_one(&mut **tx)
         .await?;
 
-        if res.rows_affected() == 0 {
-            return Err(Error::RowNotFound);
-        }
-
-        Ok(())
+        Ok(res)
     }
 
     async fn log_webhook_event(
