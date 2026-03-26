@@ -13,6 +13,7 @@ pub struct ServiceUrls {
     pub auth_url: String,
     pub tracking_url: String,
     pub webhook_url: String,
+    pub topup_url: String,
 }
 
 impl ServiceUrls {
@@ -23,6 +24,7 @@ impl ServiceUrls {
                 .expect("TRACKING_SERVICE_URL must be set"),
             webhook_url: std::env::var("WEBHOOK_SERVICE_URL")
                 .expect("WEBHOOK_SERVICE_URL must be set"),
+            topup_url: std::env::var("TOPUP_SERVICE_URL").expect("TOPUP_SERVICE_URL must be set"),
         }
     }
 }
@@ -56,8 +58,28 @@ pub fn create_router(urls: ServiceUrls, state: AppState) -> Router {
             let state_inner = state.clone();
             any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
         })
+        .route("/api/shipments", {
+            let target = urls.tracking_url.clone();
+            let state_inner = state.clone();
+            any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
+        })
         .route("/api/shipments/{*path}", {
             let target = urls.tracking_url.clone();
+            let state_inner = state.clone();
+            any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
+        })
+        .route("/api/billing/{*path}", {
+            let target = urls.topup_url.clone();
+            let state_inner = state.clone();
+            any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
+        })
+        .route("/api/transactions", {
+            let target = urls.topup_url.clone();
+            let state_inner = state.clone();
+            any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
+        })
+        .route("/api/transactions/{*path}", {
+            let target = urls.topup_url.clone();
             let state_inner = state.clone();
             any(move |req: Request<Body>| reverse_proxy(state_inner, req, target))
         })
