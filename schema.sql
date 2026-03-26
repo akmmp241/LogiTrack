@@ -270,3 +270,10 @@ CREATE TABLE transactions
     paid_at             TIMESTAMPTZ        NULL,
     created_at          TIMESTAMPTZ        NOT NULL DEFAULT now()
 );
+
+CREATE TABLE notification_prices
+(
+    id    UUID PRIMARY KEY   NOT NULL DEFAULT uuid_generate_v4(),
+    field VARCHAR(30) UNIQUE NOT NULL,
+    value INTEGER            NOT NULL
+);
