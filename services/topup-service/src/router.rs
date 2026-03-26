@@ -1,5 +1,5 @@
 use crate::app::AppState;
-use crate::handlers::{billing_handler, transaction_handler};
+use crate::handlers::{billing_handler, internal_handler, transaction_handler};
 use crate::middleware;
 use axum::Router;
 use axum::middleware::from_fn_with_state;
@@ -10,6 +10,7 @@ pub fn create_routes(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(billing_routes(state.clone()))
         .merge(transaction_routes(state.clone()))
+        .merge(internal_routes(state.clone()))
 }
 
 fn billing_routes(state: Arc<AppState>) -> Router {
@@ -54,5 +55,14 @@ fn transaction_routes(state: Arc<AppState>) -> Router {
             state.clone(),
             middleware::auth_middleware,
         ))
+        .with_state(state)
+}
+
+fn internal_routes(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route(
+            "/internal/api/pricing/notifications",
+            get(internal_handler::get_notification_prices),
+        )
         .with_state(state)
 }

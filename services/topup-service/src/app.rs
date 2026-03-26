@@ -1,7 +1,9 @@
 use crate::repositories::billing_repository::BillingRepository;
+use crate::repositories::notification_price_repo::NotificationPriceRepository;
 use crate::repositories::transaction_repository::TransactionRepository;
 use crate::repositories::user_repo::UserRepository;
 use crate::router::create_routes;
+use crate::services::notification_price_service::NotificationPriceService;
 use crate::services::topup_service::TopupService;
 use crate::services::transaction_service::TransactionService;
 use config::postgres::get_db_connection;
@@ -18,6 +20,7 @@ pub struct App {
 pub struct AppState {
     pub topup_service: TopupService,
     pub transaction_service: TransactionService,
+    pub notification_price_service: NotificationPriceService,
     pub encoding_key: EncodingKey,
     pub decoding_key: DecodingKey,
 }
@@ -50,21 +53,25 @@ impl App {
         let billing_repository = BillingRepository::new(db.clone());
         let transaction_repository = TransactionRepository::new(db.clone());
         let user_repository = UserRepository::new(db.clone());
+        let notification_price_repository = NotificationPriceRepository::new(db.clone());
 
         let xendit_uc = Arc::new(XenditProvider::new(reqwest));
 
         let topup_service = TopupService::new(
             billing_repository,
-            redis,
+            redis.clone(),
             user_repository,
             transaction_repository.clone(),
             xendit_uc.clone(),
         );
         let transaction_service = TransactionService::new(transaction_repository, xendit_uc);
+        let notification_price_service =
+            NotificationPriceService::new(notification_price_repository, redis.clone());
 
         let app_state = AppState {
             topup_service,
             transaction_service,
+            notification_price_service,
             encoding_key,
             decoding_key,
         };
