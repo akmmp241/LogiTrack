@@ -15,13 +15,6 @@ pub struct StatusMapping {
     pub normalized_status: ShipmentStatus,
 }
 
-#[derive(Type, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-#[sqlx(type_name = "shipment_source", rename_all = "UPPERCASE")]
-pub enum ShipmentSource {
-    Internal,
-    External,
-}
-
 #[derive(Type, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[sqlx(type_name = "shipment_status", rename_all = "SCREAMING_SNAKE_CASE")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -54,6 +47,7 @@ pub trait ShipmentStatusParse {
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Shipment {
     pub id: Uuid,
+    pub user_id: Uuid,
     pub waybill_id: String,
     pub courier_code: String,
     pub order_id: Option<Uuid>,

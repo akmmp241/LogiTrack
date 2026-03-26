@@ -17,7 +17,7 @@ impl ShipmentRepository {
         let res = sqlx::query(
             "INSERT INTO  shipments
                 (id, waybill_id, courier_code, current_status, order_id,
-                 external_order_ref, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+                 external_order_ref, created_at, updated_at, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
         )
             .bind(shipment.id)
             .bind(shipment.waybill_id)
@@ -27,6 +27,7 @@ impl ShipmentRepository {
             .bind(shipment.external_ref_id)
             .bind(shipment.created_at)
             .bind(shipment.updated_at)
+            .bind(shipment.user_id)
         .execute(&self.pool)
         .await
         .map_err(|er| {

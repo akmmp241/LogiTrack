@@ -11,6 +11,7 @@ use axum::Router;
 use biteship::BiteshipUseCase;
 use config::postgres::get_db_connection;
 use config::rabbitmq::create_channel;
+use config::redis::create_redis_pool;
 use config::reqwest::get_reqwest_pool;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::sync::Arc;
@@ -67,7 +68,9 @@ impl App {
 
         let bs_uc = BiteshipUseCase::new(pool);
 
-        let service = TrackingService::new(repos, bs_uc, rabbitmq_channel).await;
+        let redis_pool = create_redis_pool().await;
+
+        let service = TrackingService::new(repos, bs_uc, rabbitmq_channel, redis_pool).await;
 
         let state = Arc::new(AppState {
             service,
