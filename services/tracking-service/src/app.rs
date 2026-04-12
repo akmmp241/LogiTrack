@@ -85,7 +85,10 @@ impl App {
         let port = std::env::var("TRACKING_SERVICE_PORT").unwrap_or_else(|_| "3002".to_string());
         let addr = format!("0.0.0.0:{}", port);
 
-        let router = Router::new().merge(routes(self.state.clone()));
+        let router = Router::new()
+            .route("/metrics", axum::routing::get(observability::metrics_handler))
+            .merge(routes(self.state.clone()))
+            .layer(axum::middleware::from_fn(observability::metrics_middleware));
 
         let listener = TcpListener::bind(&addr)
             .await

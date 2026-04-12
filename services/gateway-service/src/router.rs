@@ -86,8 +86,11 @@ pub fn create_router(urls: ServiceUrls, state: AppState) -> Router {
         .layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware));
 
     Router::new()
+        .route("/metrics", axum::routing::get(observability::metrics_handler))
         .merge(public_auth_routes)
         .merge(protected_routes)
         .with_state(state)
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(observability::metrics_middleware))
 }
+

@@ -83,6 +83,21 @@ async fn main() -> anyhow::Result<()> {
     consumers.push(NotificationConsumer::new(email_handler, email_queue).await);
 
     let mut tasks = Vec::<tokio::task::JoinHandle<()>>::new();
+    
+    // Metrics server task
+    let metrics_task = tokio::spawn(async move {
+        let app = axum::Router::new()
+            .route("/metrics", axum::routing::get(observability::metrics_handler));
+        
+        let port = env::var("NOTIFICATION_SERVICE_METRICS_PORT").unwrap_or_else(|_| "3006".to_string());
+        let addr = format!("0.0.0.0:{}", port);
+        let listener = tokio::net::TcpListener::bind(&addr).await.expect("Failed to bind metrics server");
+        
+        tracing::info!("Metrics server listening on http://{}", addr);
+        axum::serve(listener, app).await.expect("Failed to start metrics server");
+    });
+    tasks.push(metrics_task);
+
     for consumer in consumers {
         let task = tokio::spawn(async move { consumer.start().await.unwrap() });
         tasks.push(task);
