@@ -5,7 +5,8 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware as axum_mw;
-use axum::routing::any;
+use axum::response::Html;
+use axum::routing::{any, get};
 use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
@@ -28,6 +29,26 @@ impl ServiceUrls {
         }
     }
 }
+
+const OPENAPI_YAML: &str = include_str!("../../../openapi.yaml");
+
+const SCALAR_UI_HTML: &str = r#"
+<!doctype html>
+<html>
+  <head>
+    <title>LogiTrack API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <script id="api-reference" data-url="/openapi.yaml"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>
+"#;
 
 pub fn create_router(urls: ServiceUrls, state: AppState) -> Router {
     let public_auth_routes = Router::new()
@@ -85,8 +106,23 @@ pub fn create_router(urls: ServiceUrls, state: AppState) -> Router {
         })
         .layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware));
 
+    let docs_routes = Router::new()
+        .route("/openapi.yaml", get(|| async {
+            (
+                [("content-type", "text/yaml")],
+                OPENAPI_YAML
+            )
+        }))
+        .route("/docs", get(|| async {
+            Html(SCALAR_UI_HTML)
+        }))
+        .route("/swagger", get(|| async {
+            Html(SCALAR_UI_HTML)
+        }));
+
     Router::new()
         .route("/metrics", axum::routing::get(observability::metrics_handler))
+        .merge(docs_routes)
         .merge(public_auth_routes)
         .merge(protected_routes)
         .with_state(state)

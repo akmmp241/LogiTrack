@@ -4,7 +4,7 @@ target/
 README.md
 architecture.excalidraw
 LICENSE
-openapi.yaml
+
 schema.sql
 .github
 **/*.rs.bk
