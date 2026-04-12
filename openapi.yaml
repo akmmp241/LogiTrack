@@ -57,9 +57,15 @@ tags:
   - name: Notification Logs
     description: Notification delivery logs for shipments
   - name: Webhooks
-    description: Inbound courier webhook endpoints
+    description: Inbound courier and payment webhook endpoints
+  - name: Billing
+    description: Wallet and top-up management
+  - name: Transactions
+    description: Transaction history and simulation
   - name: System
     description: Health checks and diagnostics
+  - name: Internal
+    description: Internal service-to-service endpoints
 
 paths:
 
@@ -673,6 +679,209 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /api/webhooks/xendit/payment-capture:
+    post:
+      operationId: xenditPaymentCaptureWebhook
+      tags: [Webhooks]
+      summary: Receive Xendit payment capture webhook
+      description: |
+        Inbound webhook endpoint called by Xendit when a payment is captured.
+      security:
+        - XenditWebhookAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XenditPaymentWebhookPayload"
+      responses:
+        "200":
+          description: Webhook processed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/webhooks/xendit/pr-expiry:
+    post:
+      operationId: xenditPaymentRequestExpiryWebhook
+      tags: [Webhooks]
+      summary: Receive Xendit payment request expiry webhook
+      description: |
+        Inbound webhook endpoint called by Xendit when a payment request expires.
+      security:
+        - XenditWebhookAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XenditPaymentRequestWebhookPayload"
+      responses:
+        "200":
+          description: Webhook processed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # BILLING – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/billing/wallet:
+    get:
+      operationId: getWallet
+      tags: [Billing]
+      summary: Get user wallet balance and usage
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Wallet information retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetWalletResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/billing/topup:
+    post:
+      operationId: topupWallet
+      tags: [Billing]
+      summary: Request a wallet top-up
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupRequest"
+      responses:
+        "201":
+          description: Top-up request created
+          content:
+            application/json:
+              schema:
+                 $ref: "#/components/schemas/TopupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/billing/transactions:
+    get:
+      operationId: getWalletTransactions
+      tags: [Billing]
+      summary: Get wallet transaction history
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Transaction history retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetWalletTransactionsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # TRANSACTIONS – Protected
+  # ─────────────────────────────────────────────────────────
+
+  /api/transactions:
+    get:
+      operationId: getTransactions
+      tags: [Transactions]
+      summary: List all billing transactions
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetTransactionsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/transactions/{id}:
+    get:
+      operationId: getTransactionById
+      tags: [Transactions]
+      summary: Get transaction detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransactionIdPath"
+      responses:
+        "200":
+          description: Transaction detail retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetTransactionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/transactions/{id}/simulate:
+    post:
+      operationId: simulateTransaction
+      tags: [Transactions]
+      summary: Simulate a transaction payment (Dev/Test only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransactionIdPath"
+      responses:
+        "200":
+          description: Payment simulation successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ─────────────────────────────────────────────────────────
+  # INTERNAL
+  # ─────────────────────────────────────────────────────────
+
+  /internal/api/pricing/notifications:
+    get:
+      operationId: getNotificationPrices
+      tags: [Internal]
+      summary: Get current pricing for notifications
+      responses:
+        "200":
+          description: Pricing information retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
 # ═══════════════════════════════════════════════════════════
 # COMPONENTS
 # ═══════════════════════════════════════════════════════════
@@ -710,6 +919,14 @@ components:
         Webhook authentication for Biteship callbacks. The header name
         is configured via `BITESHIP_WEBHOOK_KEY` env var and the expected
         value via `BITESHIP_WEBHOOK_SECRET`.
+    XenditWebhookAuth:
+      type: apiKey
+      in: header
+      name: X-Xendit-Webhook-Token
+      description: |
+        Webhook authentication for Xendit callbacks. The header name
+        is configured via `XENDIT_WEBHOOK_KEY` env var and the expected
+        token value via `XENDIT_WEBHOOK_TOKEN`.
 
   # ─────────────────────────────────────────────────────────
   # Reusable Parameters
@@ -745,6 +962,16 @@ components:
         type: string
         format: uuid
       example: f1a2b3c4-d5e6-7890-abcd-1234567890ab
+ 
+    TransactionIdPath:
+      name: id
+      in: path
+      required: true
+      description: UUID of the transaction
+      schema:
+        type: string
+        format: uuid
+      example: d290f1ee-6c54-4b01-90e6-d701748f0851
 
   # ─────────────────────────────────────────────────────────
   # Reusable Responses
@@ -1323,3 +1550,219 @@ components:
           description: Human-readable response message
       example:
         message: Operation completed successfully
+
+    # ── Billing & Transactions ─────────────────────────────
+
+    TransactionStatus:
+      type: string
+      enum:
+        - PENDING
+        - PAID
+        - EXPIRED
+        - FAILED
+      description: Current status of a billing transaction
+
+    Transaction:
+      type: object
+      required:
+        - id
+        - external_payment_id
+        - request_amount
+        - charge_amount
+        - total_amount
+        - status
+        - payment_method
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        external_payment_id:
+          type: string
+        request_amount:
+          type: integer
+          format: int64
+        charge_amount:
+          type: integer
+          format: int64
+        total_amount:
+          type: integer
+          format: int64
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        payment_method:
+          type: string
+        metadata:
+          type: string
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CurrentMonthUsage:
+      type: object
+      required: [period, awb_count, current_tier]
+      properties:
+        period:
+          type: string
+          example: "2024-04"
+        awb_count:
+          type: integer
+        current_tier:
+          type: integer
+        next_tier_threshold:
+          type: integer
+          nullable: true
+
+    GetWalletResponse:
+      type: object
+      required: [wallet_balance, current_month_usage]
+      properties:
+        wallet_balance:
+          type: integer
+          format: int64
+        current_month_usage:
+          $ref: "#/components/schemas/CurrentMonthUsage"
+
+    TopupRequest:
+      type: object
+      required: [amount, payment_method]
+      properties:
+        amount:
+          type: integer
+          format: int64
+        payment_method:
+          type: string
+
+    TopupResponse:
+      type: object
+      required: [id, status, actions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopupAction"
+
+    TopupAction:
+      type: object
+      required: [type, descriptor, value]
+      properties:
+        type:
+          type: string
+          example: PRESENT_TO_CUSTOMER
+        descriptor:
+          type: string
+          example: VIRTUAL_ACCOUNT_NUMBER
+        value:
+          type: string
+          example: "880123456789"
+
+    WalletTransactionType:
+      type: string
+      enum:
+        - TOPUP
+        - AWB_CREATION
+        - EMAIL_NOTIFICATION
+        - WA_NOTIFICATION
+        - REFUND
+
+    WalletTransaction:
+      type: object
+      required: [id, wallet_id, amount, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        wallet_id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/WalletTransactionType"
+        amount:
+          type: integer
+          format: int64
+        reference_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    GetWalletTransactionsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/WalletTransaction"
+
+    GetTransactionsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/Transaction"
+
+    GetTransactionResponse:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/Transaction"
+        - type: object
+          properties:
+            actions:
+              type: array
+              items:
+                $ref: "#/components/schemas/TopupAction"
+
+    # ── Xendit Webhook Payloads ────────────────────────────
+
+    XenditPaymentWebhookPayload:
+      type: object
+      required: [event, data]
+      properties:
+        event:
+          type: string
+        data:
+          $ref: "#/components/schemas/XenditPaymentData"
+
+    XenditPaymentData:
+      type: object
+      required: [payment_id, status, payment_request_id, request_amount, channel_code, reference_id]
+      properties:
+        payment_id:
+          type: string
+        status:
+          type: string
+        payment_request_id:
+          type: string
+        request_amount:
+          type: integer
+          format: int64
+        channel_code:
+          type: string
+        reference_id:
+          type: string
+
+    XenditPaymentRequestWebhookPayload:
+      type: object
+      required: [event, data]
+      properties:
+        event:
+          type: string
+        data:
+          $ref: "#/components/schemas/XenditPaymentRequestData"
+
+    XenditPaymentRequestData:
+      type: object
+      required: [payment_request_id, reference_id, status]
+      properties:
+        payment_request_id:
+          type: string
+        reference_id:
+          type: string
+        status:
+          type: string
