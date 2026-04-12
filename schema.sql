@@ -154,38 +154,38 @@ ALTER TABLE status_mappings
 ALTER TABLE shipments
     ADD COLUMN user_id UUID REFERENCES users (id);
 
--- Dummy user data
-INSERT INTO users (id, name, phone_number, email, created_at)
-VALUES ('550e8400-e29b-41d4-a716-446655440000', 'John Doe', '+1234567890', 'john.doe@example.com',
-        '2024-01-15 10:30:00+00'),
-       ('550e8400-e29b-41d4-a716-446655440001', 'Jane Smith', '+1234567891', 'jane.smith@example.com',
-        '2024-01-20 14:45:00+00');
+-- -- Dummy user data
+-- INSERT INTO users (id, name, phone_number, email, created_at)
+-- VALUES ('550e8400-e29b-41d4-a716-446655440000', 'John Doe', '+1234567890', 'john.doe@example.com',
+--         '2024-01-15 10:30:00+00'),
+--        ('550e8400-e29b-41d4-a716-446655440001', 'Jane Smith', '+1234567891', 'jane.smith@example.com',
+--         '2024-01-20 14:45:00+00');
+--
+-- -- User notification preferences
+-- INSERT INTO user_notification_preferences (user_id, default_channels, updated_at)
+-- VALUES ('550e8400-e29b-41d4-a716-446655440000', '{WHATSAPP,EMAIL}', '2024-01-15 10:30:00+00'),
+--        ('550e8400-e29b-41d4-a716-446655440001', '{EMAIL}', '2024-01-20 14:45:00+00');
+--
+-- -- Shipment subscriptions
+-- INSERT INTO shipment_subscriptions (id, user_id, shipment_id, subscribed_statuses, label, created_at, updated_at)
+-- VALUES ('850e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000',
+--         'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{OUT_FOR_DELIVERY,DELIVERED,FAILED}', 'Electronics Order',
+--         '2024-01-16 09:15:00+00', '2024-01-16 09:15:00+00'),
+--        ('850e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001',
+--         'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{DELIVERED,FAILED, RETURNED}', 'Books Order', '2024-01-22 16:15:00+00',
+--         '2024-01-22 16:15:00+00');
 
--- User notification preferences
-INSERT INTO user_notification_preferences (user_id, default_channels, updated_at)
-VALUES ('550e8400-e29b-41d4-a716-446655440000', '{WHATSAPP,EMAIL}', '2024-01-15 10:30:00+00'),
-       ('550e8400-e29b-41d4-a716-446655440001', '{EMAIL}', '2024-01-20 14:45:00+00');
-
--- Shipment subscriptions
-INSERT INTO shipment_subscriptions (id, user_id, shipment_id, subscribed_statuses, label, created_at, updated_at)
-VALUES ('850e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000',
-        'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{OUT_FOR_DELIVERY,DELIVERED,FAILED}', 'Electronics Order',
-        '2024-01-16 09:15:00+00', '2024-01-16 09:15:00+00'),
-       ('850e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001',
-        'e975bb9f-c0b5-4fe5-a20d-e34eba31dafa', '{DELIVERED,FAILED, RETURNED}', 'Books Order', '2024-01-22 16:15:00+00',
-        '2024-01-22 16:15:00+00');
-
-SELECT id,
-       waybill_id,
-       courier_code,
-       source,
-       current_status,
-       order_id,
-       external_order_ref,
-       created_at,
-       updated_at
-FROM shipments
-WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';
+-- SELECT id,
+--        waybill_id,
+--        courier_code,
+--        source,
+--        current_status,
+--        order_id,
+--        external_order_ref,
+--        created_at,
+--        updated_at
+-- FROM shipments
+-- WHERE user_id = '550e8400-e29b-41d4-a716-446655440006';
 
 ALTER TABLE tracking_events
     DROP COLUMN location;
@@ -277,3 +277,7 @@ CREATE TABLE notification_prices
     field VARCHAR(30) UNIQUE NOT NULL,
     value INTEGER            NOT NULL
 );
+
+INSERT INTO notification_prices (field, value)
+VALUES
+('WHATSAPP', 600), ('EMAIL', 100);
