@@ -103,6 +103,9 @@ impl TrackingService {
                 None => HttpError::InternalServerError(anyhow::anyhow!("error from db")),
             })?;
 
+        metrics::counter!("shipment_created_total", "courier" => req.courier_code.clone()).increment(1);
+
+
         awb_counter::increment_awb_count(&self.redis_pool, &user_id)
             .await
             .map_err(|e| {

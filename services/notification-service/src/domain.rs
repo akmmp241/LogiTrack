@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use redis::{RedisWrite, ToRedisArgs};
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
@@ -11,6 +14,16 @@ pub enum NotificationChannel {
     Whatsapp,
     Email,
     Telegram,
+}
+
+impl Display for NotificationChannel {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            NotificationChannel::Whatsapp => write!(f, "Whatsapp"),
+            NotificationChannel::Email => write!(f, "Email"),
+            NotificationChannel::Telegram => write!(f, "Telegram"),
+        }
+    }
 }
 
 impl ToRedisArgs for NotificationChannel {

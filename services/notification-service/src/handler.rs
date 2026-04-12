@@ -5,8 +5,8 @@ use crate::domain::{
 };
 use crate::ports::ChannelPort;
 use chrono::Utc;
-use lapin::BasicProperties;
 use lapin::options::BasicPublishOptions;
+use lapin::BasicProperties;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -126,6 +126,8 @@ impl NotificationHandler {
                     created_at: Utc::now(),
                 })
                 .await?;
+
+                metrics::counter!("notifications_sent_total", "channel" => event.channel.to_string().to_lowercase()).increment(1);
 
                 self.publish_billing_event(
                     &event.user_id,
