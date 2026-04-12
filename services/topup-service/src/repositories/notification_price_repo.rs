@@ -12,8 +12,7 @@ impl NotificationPriceRepository {
     }
 
     pub async fn get_all(&self) -> Result<Vec<NotificationPrice>, sqlx::Error> {
-        let prices = sqlx::query_as!(
-            NotificationPrice,
+        let prices = sqlx::query_as::<_, NotificationPrice>(
             r#"
             SELECT id, field, value
             FROM notification_prices
