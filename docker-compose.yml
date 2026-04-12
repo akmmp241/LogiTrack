@@ -132,6 +132,7 @@ services:
       TOPUP_SERVICE_URL: http://topup-service:${TOPUP_SERVICE_PORT}
     volumes:
       - ./keys:/app/keys:ro
+      - ./openapi.yaml:/app/openapi.yaml:ro
     networks:
       - logitrack-net
     restart: unless-stopped
@@ -328,6 +329,7 @@ services:
       - "3100:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
 
