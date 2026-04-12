@@ -66,6 +66,7 @@ impl TrackingService {
         user_id: Uuid,
         req: &AddTrackingRequest,
     ) -> Result<AddTrackingResponse, HttpError> {
+        metrics::counter!("shipment_create_attempts_total").increment(1);
         let user_with_notif_pref = self.get_user(&user_id).await?;
 
         let bs_resp = self
@@ -98,9 +99,12 @@ impl TrackingService {
             .shipment_repository
             .save(shipment.clone())
             .await
-            .map_err(|e| match e {
-                Some(err) => HttpError::BadRequest(err.to_string()),
-                None => HttpError::InternalServerError(anyhow::anyhow!("error from db")),
+            .map_err(|e| {
+                metrics::counter!("shipment_create_failures_total", "reason" => "db_error").increment(1);
+                match e {
+                    Some(err) => HttpError::BadRequest(err.to_string()),
+                    None => HttpError::InternalServerError(anyhow::anyhow!("error from db")),
+                }
             })?;
 
         metrics::counter!("shipment_created_total", "courier" => req.courier_code.clone()).increment(1);
@@ -263,6 +267,8 @@ impl TrackingService {
         if rows_affected == 0 {
             return Err(HttpError::NotFound("shipment not found".into()));
         }
+
+        metrics::counter!("shipment_deleted_total").increment(1);
 
         Ok(())
     }

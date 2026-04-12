@@ -22,8 +22,8 @@ handlebars = "6.4"
 redis = { workspace = true }
 deadpool-redis.workspace = true
 chrono.workspace = true
-metrics = "0.24"
-metrics-exporter-prometheus = "0.16"
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
 observability = { path = "../../libs/observability" }
 config = { path = "../../libs/config" }
 waha = { path = "../../libs/use_case/waha" }
