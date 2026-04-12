@@ -46,6 +46,4 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 ARG BINARY_NAME
 COPY --from=builder /app/target/debug/${BINARY_NAME} /app/server
 
-EXPOSE 3000
-
 CMD ["./server"]

@@ -1,25 +1,40 @@
 services:
   tracking-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-tracking:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
       args:
         BINARY_NAME: tracking-service
     ports:
-      - "3000:3000"
+      - "3002:${TRACKING_SERVICE_PORT}"
     environment:
+      RUST_LOG: info
+      TRACKING_SERVICE_PORT: ${TRACKING_SERVICE_PORT}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_HOST: db
       POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      REDIS_URL: redis://:@redis:6379
       BITESHIP_API_URL: ${BITESHIP_API_URL}
       BITESHIP_API_KEY_TEST: ${BITESHIP_API_KEY_TEST}
       BITESHIP_API_KEY_PROD: ${BITESHIP_API_KEY_PROD}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+    volumes:
+      - ./keys:/app/keys:ro
     networks:
       - logitrack-net
+    restart: unless-stopped
     depends_on:
       - db
+      - rabbitmq
+      - redis
 
   db:
     image: postgres:17
@@ -38,6 +53,7 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     container_name: rabbitmq
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -52,8 +68,6 @@ services:
   redis:
     image: redis:alpine
     container_name: redis
-    environment:
-      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD}
     networks:
       - logitrack-net
     restart: unless-stopped
@@ -61,6 +75,233 @@ services:
       - redis-data:/data
     ports:
       - "6379:6379"
+
+  auth-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-auth:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: auth-service
+    ports:
+      - "3001:${AUTH_SERVICE_PORT}"
+    environment:
+      RUST_LOG: info
+      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      REDIS_URL: redis://:@redis:6379
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_EXPIRATION_SECS: ${JWT_EXPIRATION_SECS}
+    volumes:
+      - ./keys:/app/keys:ro
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+
+  gateway-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-gateway:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: gateway-service
+    ports:
+      - "3000:${GATEWAY_PORT}"
+    environment:
+      RUST_LOG: info
+      GATEWAY_PORT: ${GATEWAY_PORT}
+      REDIS_URL: redis://:@redis:6379
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      AUTH_SERVICE_URL: http://auth-service:${AUTH_SERVICE_PORT}
+      TRACKING_SERVICE_URL: http://tracking-service:${TRACKING_SERVICE_PORT}
+      WEBHOOK_SERVICE_URL: http://webhook-service:${WEBHOOK_SERVICE_PORT}
+      TOPUP_SERVICE_URL: http://topup-service:${TOPUP_SERVICE_PORT}
+    volumes:
+      - ./keys:/app/keys:ro
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - tracking-service
+      - webhook-service
+      - topup-service
+      - redis
+
+  webhook-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-webhook:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: webhook-service
+    ports:
+      - "3003:${WEBHOOK_SERVICE_PORT}"
+    environment:
+      RUST_LOG: info
+      WEBHOOK_SERVICE_PORT: ${WEBHOOK_SERVICE_PORT}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      REDIS_URL: redis://:@redis:6379
+      BITESHIP_WEBHOOK_KEY: ${BITESHIP_WEBHOOK_KEY}
+      BITESHIP_WEBHOOK_SECRET: ${BITESHIP_WEBHOOK_SECRET}
+      XENDIT_WEBHOOK_KEY: ${XENDIT_WEBHOOK_KEY}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+
+  topup-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-topup:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: topup-service
+    ports:
+      - "3004:${TOPUP_SERVICE_PORT}"
+    environment:
+      RUST_LOG: info
+      TOPUP_SERVICE_PORT: ${TOPUP_SERVICE_PORT}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      REDIS_URL: redis://:@redis:6379
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      XENDIT_BASE_URL: ${XENDIT_BASE_URL}
+      XENDIT_API_KEY: ${XENDIT_API_KEY}
+    volumes:
+      - ./keys:/app/keys:ro
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+
+  billing-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-billing:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: billing-service
+    environment:
+      RUST_LOG: info
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      BILLING_QUEUE: ${BILLING_QUEUE}
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbitmq
+
+  polling-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-polling:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: polling-service
+    environment:
+      RUST_LOG: info
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      POLLING_TICK_INTERVAL_SECS: ${POLLING_TICK_INTERVAL_SECS}
+      BITESHIP_API_URL: ${BITESHIP_API_URL}
+      BITESHIP_API_KEY_TEST: ${BITESHIP_API_KEY_TEST}
+      BITESHIP_API_KEY_PROD: ${BITESHIP_API_KEY_PROD}
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbitmq
+
+  notification-service:
+    image: ${DOCKER_HUB_USERNAME}/logitrack-notification:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BINARY_NAME: notification-service
+    environment:
+      RUST_LOG: info
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      REDIS_URL: redis://:@redis:6379
+      WA_QUEUE: ${WA_QUEUE}
+      TELE_QUEUE: ${TELE_QUEUE}
+      EMAIL_QUEUE: ${EMAIL_QUEUE}
+      TOPUP_SERVICE_URL: http://topup-service:${TOPUP_SERVICE_PORT}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      WAHA_API_URL: ${WAHA_API_URL}
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_SESSION: ${WAHA_SESSION}
+      TELE_API_KEY: ${TELE_API_KEY}
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+      - topup-service
 
 volumes:
   logitrack_db_data:
