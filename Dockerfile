@@ -35,7 +35,7 @@ COPY --from=cacher /usr/local/cargo /usr/local/cargo
 COPY . .
 
 ARG BINARY_NAME
-RUN cargo build --bin ${BINARY_NAME}
+RUN cargo build -p ${BINARY_NAME} --release
 
 
 FROM debian:bookworm-slim AS runtime

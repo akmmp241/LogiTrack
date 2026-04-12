@@ -294,6 +294,7 @@ services:
       WAHA_API_KEY: ${WAHA_API_KEY}
       WAHA_SESSION: ${WAHA_SESSION}
       TELE_API_KEY: ${TELE_API_KEY}
+      NOTIFICATION_SERVICE_METRICS_PORT: 3006
     networks:
       - logitrack-net
     restart: unless-stopped
@@ -303,10 +304,43 @@ services:
       - redis
       - topup-service
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+
+    networks:
+      - logitrack-net
+    restart: unless-stopped
+
 volumes:
   logitrack_db_data:
   rabbitmq_data:
   redis-data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   logitrack-net:
