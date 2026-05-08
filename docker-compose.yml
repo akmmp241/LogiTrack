@@ -31,10 +31,18 @@ services:
     networks:
       - logitrack-net
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
-      - db
-      - rabbitmq
-      - redis
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   db:
     image: postgres:17
@@ -49,6 +57,16 @@ services:
       - logitrack_db_data:/var/lib/postgresql/data
     networks:
       - logitrack-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -64,6 +82,16 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - logitrack-net
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
 
   redis:
     image: redis:alpine
@@ -75,6 +103,16 @@ services:
       - redis-data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   auth-service:
     image: ${DOCKER_HUB_USERNAME}/logitrack-auth:${IMAGE_TAG:-latest}
@@ -106,10 +144,18 @@ services:
     networks:
       - logitrack-net
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
-      - db
-      - rabbitmq
-      - redis
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   gateway-service:
     image: ${DOCKER_HUB_USERNAME}/logitrack-gateway:${IMAGE_TAG:-latest}
@@ -136,12 +182,22 @@ services:
     networks:
       - logitrack-net
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
-      - auth-service
-      - tracking-service
-      - webhook-service
-      - topup-service
-      - redis
+      auth-service:
+        condition: service_healthy
+      tracking-service:
+        condition: service_healthy
+      webhook-service:
+        condition: service_healthy
+      topup-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   webhook-service:
     image: ${DOCKER_HUB_USERNAME}/logitrack-webhook:${IMAGE_TAG:-latest}
@@ -321,6 +377,11 @@ services:
     networks:
       - logitrack-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
 
   grafana:
     image: grafana/grafana:latest
